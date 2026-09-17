@@ -12,7 +12,28 @@ type sampleNode struct {
 var sampleTree = sampleNode{
 	text:   "Sample map (delete me)",
 	accent: "mauve",
-	note:   "This map ships with Inoichi as example content. Delete it from the map list; nothing else depends on it.",
+	note: `# About this map
+
+This map ships with Inoichi as example content. Delete it from the map list; nothing else depends on it.
+
+## Markdown on a node
+
+Any node can carry a Markdown document like this one. Select the node and type in the **Markdown** box of the node panel, then open it with the icon on the node or with Ctrl+Enter.
+
+- Headings, lists and emphasis
+- Links such as [the project page](https://github.com/tanq16/inoichi)
+- Code, inline like ` + "`make build`" + ` or fenced:
+
+` + "```" + `bash
+inoichi serve --port 8080
+` + "```" + `
+
+| Key | Does |
+|---|---|
+| Tab | Adds a child |
+| Enter | Adds a sibling |
+| Space | Renames |
+`,
 	children: []sampleNode{
 		{
 			text:   "How to move around",
@@ -29,7 +50,7 @@ var sampleTree = sampleNode{
 			children: []sampleNode{
 				{text: "Tab adds a child to the selected node"},
 				{text: "Enter adds a sibling"},
-				{text: "F2 renames, Delete removes a branch"},
+				{text: "Space renames, Delete removes a branch"},
 				{text: "Shift+drag a node onto another to reparent it"},
 			},
 		},
@@ -40,6 +61,11 @@ var sampleTree = sampleNode{
 				{text: "One JSON file per map on this machine"},
 				{text: "Nothing leaves the process, ever"},
 				{text: "Export JSON, SVG or PNG any time"},
+				{
+					text:   "Longer notes live in Markdown",
+					accent: "teal",
+					note:   "# A note\n\nThis node carries its own Markdown. Click the page icon on the node to read it rendered.",
+				},
 			},
 		},
 		{

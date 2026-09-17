@@ -17,7 +17,7 @@ const (
 	MaxLinks      = 2000
 	MaxTitleRunes = 120
 	MaxTextRunes  = 512
-	MaxNoteRunes  = 4000
+	MaxNoteRunes  = 20000
 	MinNodeWidth  = 80
 	MaxNodeWidth  = 640
 	MinNodeHeight = 32
@@ -25,8 +25,8 @@ const (
 	CanvasExtent  = 100000
 	SchemaVersion = 1
 
-	// 2000 nodes carrying the maximum text and note run to roughly 10MB compact,
-	// so the document ceiling has to clear what Validate already permits.
+	// The practical size limit for one map. A map over it is refused as too
+	// large, even when every field is inside the limits Validate checks.
 	MaxDocumentBytes = 32 << 20
 )
 

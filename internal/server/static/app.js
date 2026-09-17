@@ -11,52 +11,52 @@
     mantle: '#181825', crust: '#11111b',
   };
   const ACCENTS = ['mauve', 'blue', 'green', 'peach', 'pink', 'teal', 'yellow', 'red', 'sapphire', 'lavender'];
-  const LIMITS = { text: 512, note: 4000, title: 120, nodes: 2000 };
+  const LIMITS = { text: 512, note: 20000, title: 120, nodes: 2000 };
   const TYPE = {
     root: { size: 15, weight: 600, line: 20 },
     node: { size: 14, weight: 400, line: 20 },
-    padX: 14, padY: 10,
+    padX: 14, padY: 10, noteSlot: 22,
     family: 'Inter, system-ui, sans-serif',
   };
+  const TINT = { node: 0.22, root: 0.36, edge: 0.75 };
   const SIZE = { minW: 80, maxW: 640, minH: 32, maxH: 640 };
   const ZOOM = { min: 0.2, max: 2.5 };
-  const SAVE_DEBOUNCE_MS = 700;
+  const SAVE = { idleMs: 1000, maxWaitMs: 5000 };
+  const PANEL = { sidebar: { min: 200, max: 480, initial: 272 }, inspector: { min: 240, max: 560, initial: 300 } };
 
   const $ = (id) => document.getElementById(id);
   const el = {
-    sidebar: $('sidebar'), mapList: $('map-list'), mapListLoading: $('map-list-loading'),
+    sidebar: $('sidebar'), sidebarResizer: $('sidebar-resizer'), sidebarOpen: $('sidebar-open'), sidebarClose: $('sidebar-close'),
+    mapList: $('map-list'), mapListLoading: $('map-list-loading'),
     mapListEmpty: $('map-list-empty'), mapListError: $('map-list-error'),
     mapListErrorDetail: $('map-list-error-detail'), mapListRetry: $('map-list-retry'),
-    newMap: $('new-map'), emptyNewMap: $('empty-new-map'), importMap: $('import-map'),
-    importFile: $('import-file'), sidebarOpen: $('sidebar-open'), sidebarClose: $('sidebar-close'),
-    title: $('map-title'), titleError: $('title-error'),
-    saveStatus: $('save-status'), saveRetry: $('save-retry'),
-    canvas: $('canvas'), scene: $('scene'), edges: $('edges'), nodes: $('nodes'), hint: $('hint'),
+    newMap: $('new-map'), emptyNewMap: $('empty-new-map'), importMap: $('import-map'), importFile: $('import-file'),
+    title: $('map-title'), titleError: $('title-error'), saveStatus: $('save-status'),
+    canvas: $('canvas'), scene: $('scene'), edges: $('edges'), nodes: $('nodes'),
     canvasLoading: $('canvas-loading'), canvasEmpty: $('canvas-empty'),
     canvasError: $('canvas-error'), canvasErrorDetail: $('canvas-error-detail'), canvasRetry: $('canvas-retry'),
     undo: $('btn-undo'), redo: $('btn-redo'), tidy: $('btn-tidy'),
     zoomIn: $('btn-zoom-in'), zoomOut: $('btn-zoom-out'), zoomReset: $('btn-zoom-reset'),
     exportBtn: $('btn-export'), exportMenu: $('export-menu'),
-    inspector: $('inspector'), inspClose: $('inspector-close'), inspText: $('insp-text'),
-    inspNote: $('insp-note'), inspNoteCount: $('insp-note-count'), inspAccents: $('insp-accents'),
+    inspector: $('inspector'), inspectorResizer: $('inspector-resizer'), inspClose: $('inspector-close'), toggleInspector: $('toggle-inspector'),
+    inspText: $('insp-text'), inspNote: $('insp-note'), inspNoteOpen: $('insp-note-open'), inspAccents: $('insp-accents'),
     inspAddChild: $('insp-add-child'), inspDelete: $('insp-delete'),
-    toasts: $('toasts'), live: $('live'), versionLine: $('version-line'),
+    toasts: $('toasts'), live: $('live'),
     dialog: $('dialog'), dialogTitle: $('dialog-title'), dialogBody: $('dialog-body'),
     dialogInputWrap: $('dialog-input-wrap'), dialogLabel: $('dialog-label'),
     dialogInput: $('dialog-input'), dialogError: $('dialog-error'), dialogConfirm: $('dialog-confirm'),
-    help: $('help'), helpClose: $('help-close'), helpKeys: $('help-keys'), helpDataDir: $('help-datadir'),
-    showHelp: $('show-help'), toggleInspector: $('toggle-inspector'),
+    help: $('help'), helpClose: $('help-close'), helpKeys: $('help-keys'), showHelp: $('show-help'),
+    md: $('md'), mdTitle: $('md-title'), mdBody: $('md-body'), mdEdit: $('md-edit'), mdClose: $('md-close'),
+    desktopOnly: $('desktop-only'),
   };
 
-  const wideScreen = () => window.matchMedia('(min-width: 768px)').matches;
-
   const S = {
-    summaries: [], map: null, selected: null, editing: false,
+    summaries: [], map: null, version: '', selected: null, editing: false,
     view: { x: 0, y: 0, k: 1 },
     undo: [], redo: [],
-    save: { state: 'idle', timer: null, inflight: false, pending: false, lastError: '', revision: 0 },
-    inspectorOpen: wideScreen(),
-    inspectorClosedByUser: false,
+    save: { state: 'idle', timer: null, deadline: 0, inflight: false, pending: false, blipTimer: null },
+    ui: loadUI(),
+    inspectorOpen: false,
     mapListKey: '',
     nodeEls: new Map(),
     index: null,
@@ -66,6 +66,30 @@
 
   const clone = (v) => JSON.parse(JSON.stringify(v));
   const clampNum = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+  function loadUI() {
+    const defaults = { sidebarWidth: PANEL.sidebar.initial, sidebarOpen: true, inspectorWidth: PANEL.inspector.initial };
+    try {
+      const stored = JSON.parse(localStorage.getItem('inoichi:ui') || '{}');
+      return { ...defaults, ...stored };
+    } catch {
+      return defaults;
+    }
+  }
+
+  function saveUI() {
+    try { localStorage.setItem('inoichi:ui', JSON.stringify(S.ui)); } catch {}
+  }
+
+  const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const rgbToHex = (rgb) => `#${rgb.map((c) => Math.round(clampNum(c, 0, 255)).toString(16).padStart(2, '0')).join('')}`;
+
+  // Mixes an accent over the canvas ground so a node reads as its colour without a border.
+  function tint(accentHex, ratio, overHex = PALETTE.base) {
+    const a = hexToRgb(accentHex);
+    const b = hexToRgb(overHex);
+    return rgbToHex(a.map((c, i) => c * ratio + b[i] * (1 - ratio)));
+  }
 
   async function api(method, path, body) {
     let res;
@@ -85,9 +109,15 @@
       try { parsed = JSON.parse(raw); } catch { parsed = null; }
     }
     if (!res.ok) {
-      throw new Error((parsed && parsed.error) || `The server answered ${res.status}.`);
+      const err = new Error((parsed && parsed.error) || `The server answered ${res.status}.`);
+      err.status = res.status;
+      throw err;
     }
     return parsed;
+  }
+
+  function icons(root) {
+    if (window.lucide) lucide.createIcons(root ? { root } : undefined);
   }
 
   function announce(msg) {
@@ -96,21 +126,22 @@
   }
 
   function toast(message, kind = 'info') {
-    const tone = kind === 'error' ? 'border-red text-red' : kind === 'success' ? 'border-green text-green' : 'border-surface1 text-subtext0';
+    const icon = kind === 'error' ? 'circle-alert' : kind === 'success' ? 'check' : 'info';
+    const tone = kind === 'error' ? 'text-red' : kind === 'success' ? 'text-green' : 'text-overlay1';
     const box = document.createElement('div');
-    box.className = `bg-mantle border ${tone} rounded-lg px-3 py-2 text-sm flex items-start gap-2 shadow-xl`;
+    box.className = 'bg-surface0 text-subtext1 rounded-lg px-3 py-2 text-sm flex items-start gap-2 shadow-xl';
     box.setAttribute('role', kind === 'error' ? 'alert' : 'status');
-    const span = document.createElement('span');
-    span.className = 'flex-1';
-    span.textContent = message;
+    box.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 mt-0.5 shrink-0 ${tone}"></i><span class="flex-1"></span>`;
+    box.querySelector('span').textContent = message;
     const close = document.createElement('button');
-    close.className = 'text-overlay1 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve rounded';
+    close.className = 'icon-btn w-6 h-6';
     close.setAttribute('aria-label', 'Dismiss');
-    close.textContent = '✕';
+    close.innerHTML = '<i data-lucide="x" class="w-3.5 h-3.5"></i>';
     close.addEventListener('click', () => box.remove());
-    box.append(span, close);
+    box.append(close);
     el.toasts.append(box);
-    setTimeout(() => box.remove(), kind === 'error' ? 9000 : 4000);
+    icons(box);
+    setTimeout(() => box.remove(), kind === 'error' ? 9000 : 3500);
   }
 
   function askText({ title, body, label, value = '', confirmText = 'Create', validate }) {
@@ -123,7 +154,7 @@
       el.dialogInput.value = value;
       el.dialogError.classList.add('hidden');
       el.dialogConfirm.textContent = confirmText;
-      el.dialogConfirm.className = 'text-sm bg-mauve text-crust font-medium rounded-lg px-4 py-2 hover:bg-lavender focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve';
+      el.dialogConfirm.className = 'order-2 btn-primary px-4';
 
       const guard = (ev) => {
         const problem = validate ? validate(el.dialogInput.value) : null;
@@ -139,6 +170,7 @@
         el.dialogConfirm.removeEventListener('click', guard);
         resolve(el.dialog.returnValue === 'confirm' ? el.dialogInput.value.trim() : null);
       });
+      el.dialog.returnValue = '';
       el.dialog.showModal();
       el.dialogInput.focus();
       el.dialogInput.select();
@@ -153,12 +185,13 @@
       el.dialogInputWrap.classList.add('hidden');
       el.dialogConfirm.textContent = confirmText;
       el.dialogConfirm.className = danger
-        ? 'text-sm bg-red text-crust font-medium rounded-lg px-4 py-2 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-red'
-        : 'text-sm bg-mauve text-crust font-medium rounded-lg px-4 py-2 hover:bg-lavender focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve';
+        ? 'order-2 inline-flex items-center justify-center gap-2 text-sm bg-red text-crust font-medium rounded-lg px-4 py-2 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-red'
+        : 'order-2 btn-primary px-4';
       el.dialog.addEventListener('close', function done() {
         el.dialog.removeEventListener('close', done);
         resolve(el.dialog.returnValue === 'confirm');
       });
+      el.dialog.returnValue = '';
       el.dialog.showModal();
       el.dialogConfirm.focus();
     });
@@ -181,13 +214,8 @@
     return S.index;
   }
 
-  function nodeById(id) {
-    return S.map ? index().byId.get(id) : undefined;
-  }
-
-  function childrenOf(id) {
-    return index().kids.get(id) || [];
-  }
+  const nodeById = (id) => (S.map && id ? index().byId.get(id) : undefined);
+  const childrenOf = (id) => index().kids.get(id) || [];
 
   function descendants(id) {
     const { kids } = index();
@@ -233,12 +261,16 @@
       cur = nodeById(cur.parentId);
       if (cur && cur.accent) return cur.accent;
     }
-    return 'surface1';
+    return 'overlay0';
   }
+
+  const accentHex = (node) => PALETTE[accentOf(node)] || PALETTE.overlay0;
+  const fillOf = (node) => tint(accentHex(node), isRoot(node.id) ? TINT.root : TINT.node);
+  const textWidth = (node) => node.width - TYPE.padX * 2 - (node.note ? TYPE.noteSlot : 0);
 
   function measureHeight(node) {
     const style = isRoot(node.id) ? TYPE.root : TYPE.node;
-    const lines = wrapText(node.text || 'New idea', node.width - TYPE.padX * 2, style);
+    const lines = wrapText(node.text || 'New idea', textWidth(node), style);
     return clampNum(lines.length * style.line + TYPE.padY * 2, SIZE.minH, SIZE.maxH);
   }
 
@@ -293,7 +325,7 @@
     S.redo.push(clone(S.map));
     S.map = S.undo.pop();
     invalidateIndex();
-    if (!nodeById(S.selected)) S.selected = S.map.rootId;
+    if (S.selected && !nodeById(S.selected)) S.selected = S.map.rootId;
     renderAll();
     scheduleSave();
     updateHistoryButtons();
@@ -305,7 +337,7 @@
     S.undo.push(clone(S.map));
     S.map = S.redo.pop();
     invalidateIndex();
-    if (!nodeById(S.selected)) S.selected = S.map.rootId;
+    if (S.selected && !nodeById(S.selected)) S.selected = S.map.rootId;
     renderAll();
     scheduleSave();
     updateHistoryButtons();
@@ -314,29 +346,33 @@
 
   function setSaveState(state, detail = '') {
     S.save.state = state;
-    S.save.lastError = detail;
-    const map = {
-      idle: ['check', 'Saved', 'bg-surface0 text-overlay1'],
-      unsaved: ['circle-dot', 'Unsaved', 'bg-surface0 text-peach'],
-      saving: ['loader', 'Saving', 'bg-surface0 text-blue'],
-      saved: ['check', 'Saved', 'bg-surface0 text-green'],
-      error: ['triangle-alert', 'Not saved', 'bg-surface0 text-red'],
+    clearTimeout(S.save.blipTimer);
+    const look = {
+      idle: ['check', 'text-overlay0', 'Saved', true],
+      unsaved: ['circle', 'text-overlay0', 'Unsaved changes', false],
+      saving: ['loader-circle spin', 'text-overlay1', 'Saving', false],
+      saved: ['check blip', 'text-green', 'Saved', false],
+      error: ['circle-alert', 'text-red', `Not saved. ${detail} Click to retry.`, false],
     };
-    const [icon, label, cls] = map[state] || map.idle;
-    el.saveStatus.className = `flex items-center gap-1.5 text-xs px-2 py-1 rounded-md shrink-0 ${cls}`;
-    el.saveStatus.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span class="max-md:hidden">${label}</span>`;
-    el.saveStatus.title = detail || label;
-    el.saveRetry.classList.toggle('hidden', state !== 'error');
-    window.lucide && lucide.createIcons();
+    const [icon, tone, label, hidden] = look[state] || look.idle;
+    const [name, extra] = icon.split(' ');
+    el.saveStatus.className = `icon-btn w-7 h-7 ${tone} ${hidden ? 'invisible' : ''}`;
+    el.saveStatus.innerHTML = `<i data-lucide="${name}" class="w-3.5 h-3.5 ${extra || ''}"></i>`;
+    el.saveStatus.title = label;
+    el.saveStatus.setAttribute('aria-label', label);
+    el.saveStatus.disabled = state !== 'error';
+    icons(el.saveStatus);
+    if (state === 'saved') S.save.blipTimer = setTimeout(() => { if (S.save.state === 'saved') setSaveState('idle'); }, 1500);
     if (state === 'error') announce(`Save failed. ${detail}`);
   }
 
+  // Waits for a pause in editing, but never longer than maxWaitMs from the first unsaved change.
   function scheduleSave() {
     if (!S.map) return;
-    S.save.revision += 1;
-    setSaveState('unsaved');
+    const now = Date.now();
+    if (S.save.state !== 'unsaved') { S.save.deadline = now + SAVE.maxWaitMs; setSaveState('unsaved'); }
     clearTimeout(S.save.timer);
-    S.save.timer = setTimeout(saveNow, SAVE_DEBOUNCE_MS);
+    S.save.timer = setTimeout(saveNow, Math.max(0, Math.min(SAVE.idleMs, S.save.deadline - now)));
   }
 
   async function saveNow() {
@@ -345,19 +381,35 @@
     if (S.save.inflight) { S.save.pending = true; return; }
     S.save.inflight = true;
     setSaveState('saving');
-    const snapshot = clone(S.map);
-    const revision = S.save.revision;
+    const snapshot = { ...clone(S.map), updatedAt: S.version };
+    const serial = JSON.stringify(snapshot);
     try {
       const saved = await api('PUT', `/api/maps/${snapshot.id}`, snapshot);
-      if (S.map && S.map.id === snapshot.id) S.map.updatedAt = saved.updatedAt;
-      setSaveState(revision === S.save.revision ? 'saved' : 'unsaved');
-      await refreshSummaries({ quiet: true });
+      if (S.map && S.map.id === snapshot.id) {
+        S.version = saved.updatedAt;
+        S.map.updatedAt = saved.updatedAt;
+        const same = JSON.stringify({ ...clone(S.map), updatedAt: snapshot.updatedAt }) === serial;
+        setSaveState(same ? 'saved' : 'unsaved');
+        updateSummary(saved);
+      }
     } catch (e) {
-      setSaveState('error', e.message);
+      if (S.map && S.map.id === snapshot.id) {
+        setSaveState('error', e.message);
+        if (e.status === 409) toast('This map changed elsewhere. Export your copy from the toolbar, then reload the page.', 'error');
+      }
     } finally {
       S.save.inflight = false;
       if (S.save.pending) { S.save.pending = false; saveNow(); }
     }
+  }
+
+  function updateSummary(m) {
+    const i = S.summaries.findIndex((s) => s.id === m.id);
+    const summary = { id: m.id, title: m.title, nodeCount: m.nodes.length, sample: m.sample, createdAt: m.createdAt, updatedAt: m.updatedAt };
+    if (i < 0) S.summaries.unshift(summary);
+    else S.summaries[i] = summary;
+    S.summaries.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
+    renderMapList();
   }
 
   function showMapListState(which, detail = '') {
@@ -389,7 +441,7 @@
       const li = document.createElement('li');
       const active = S.map && S.map.id === s.id;
       const row = document.createElement('div');
-      row.className = `group flex items-center gap-1 rounded-lg ${active ? 'bg-surface0' : 'hover:bg-surface0'}`;
+      row.className = `group flex items-center rounded-lg ${active ? 'bg-surface0' : 'hover:bg-surface0/60'}`;
 
       const open = document.createElement('button');
       open.type = 'button';
@@ -399,26 +451,23 @@
       name.className = `truncate text-sm ${active ? 'text-text' : 'text-subtext0'}`;
       name.textContent = s.title;
       const meta = document.createElement('div');
-      meta.className = 'text-xs text-overlay1 truncate';
+      meta.className = 'text-xs text-overlay0 truncate';
       meta.textContent = `${s.nodeCount} node${s.nodeCount === 1 ? '' : 's'} · ${relativeTime(s.updatedAt)}${s.sample ? ' · sample' : ''}`;
       open.append(name, meta);
-      open.addEventListener('click', () => {
-        if (!wideScreen()) setSidebarOpen(false);
-        openMap(s.id);
-      });
+      open.addEventListener('click', () => openMap(s.id));
 
       const del = document.createElement('button');
       del.type = 'button';
-      del.className = 'shrink-0 p-2 mr-1 rounded-md text-overlay0 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red focus:outline-none focus-visible:ring-2 focus-visible:ring-red';
+      del.className = 'icon-btn w-7 h-7 mr-1 text-overlay0 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red';
       del.setAttribute('aria-label', `Delete ${s.title}`);
-      del.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
+      del.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
       del.addEventListener('click', () => deleteMap(s));
 
       row.append(open, del);
       li.append(row);
       el.mapList.append(li);
     }
-    window.lucide && lucide.createIcons();
+    icons(el.mapList);
   }
 
   function relativeTime(iso) {
@@ -435,12 +484,11 @@
     el.canvasLoading.classList.toggle('hidden', which !== 'loading');
     el.canvasEmpty.classList.toggle('hidden', which !== 'empty');
     el.canvasError.classList.toggle('hidden', which !== 'error');
-    el.hint.classList.toggle('hidden', which !== 'map');
     el.scene.classList.toggle('invisible', which !== 'map');
     if (which === 'error') el.canvasErrorDetail.textContent = detail;
     const disabled = which !== 'map';
     el.title.disabled = disabled;
-    for (const b of [el.tidy, el.zoomIn, el.zoomOut, el.zoomReset, el.exportBtn]) b.disabled = disabled;
+    for (const b of [el.tidy, el.zoomIn, el.zoomOut, el.zoomReset, el.exportBtn, el.toggleInspector]) b.disabled = disabled;
   }
 
   let lastOpenAttempt = null;
@@ -465,10 +513,11 @@
 
   function adoptMap(m) {
     S.map = m;
+    S.version = m.updatedAt;
     invalidateIndex();
     S.undo.length = 0;
     S.redo.length = 0;
-    S.selected = m.rootId;
+    S.selected = null;
     setSaveState('idle');
     el.title.value = m.title;
     el.titleError.classList.add('hidden');
@@ -477,7 +526,6 @@
     renderAll();
     fitToView();
     renderMapList();
-    if (!wideScreen()) setSidebarOpen(false);
     try { localStorage.setItem('inoichi:last', m.id); } catch {}
     announce(`Opened ${m.title}`);
   }
@@ -499,9 +547,9 @@
     await flushPendingSave();
     try {
       const m = await api('POST', '/api/maps', { title });
-      await refreshSummaries({ quiet: true });
       adoptMap(m);
-      toast('Map created.', 'success');
+      updateSummary(m);
+      select(m.rootId);
       startEditing(m.rootId);
     } catch (e) {
       toast(e.message, 'error');
@@ -523,8 +571,10 @@
         S.selected = null;
         setSaveState('idle');
         showCanvasState('empty');
+        renderInspector();
       }
-      await refreshSummaries();
+      S.summaries = S.summaries.filter((s) => s.id !== summary.id);
+      renderMapList();
       toast('Map deleted.', 'success');
     } catch (e) {
       toast(e.message, 'error');
@@ -548,8 +598,8 @@
     await flushPendingSave();
     try {
       const m = await api('POST', '/api/maps/import', parsed);
-      await refreshSummaries({ quiet: true });
       adoptMap(m);
+      updateSummary(m);
       toast('Map imported.', 'success');
     } catch (e) {
       toast(e.message, 'error');
@@ -558,8 +608,7 @@
 
   function renderAll() {
     if (!S.map) return;
-    S.index = null;
-    S.visible = null;
+    invalidateIndex();
     el.nodes.replaceChildren();
     S.nodeEls.clear();
     const visible = visibleIds();
@@ -569,12 +618,12 @@
       S.nodeEls.set(node.id, box);
       el.nodes.append(box);
     }
+    icons(el.nodes);
     syncHeightsFromDom();
     renderEdges();
     applyView();
     syncTitleInput();
     syncSelectionUI();
-    window.lucide && lucide.createIcons();
   }
 
   function syncHeightsFromDom() {
@@ -587,15 +636,16 @@
 
   function buildNodeEl(node) {
     const root = isRoot(node.id);
-    const accent = accentOf(node);
     const box = document.createElement('div');
     box.dataset.id = node.id;
-    box.className = `node absolute box-border rounded-xl border-2 border-${accent} bg-surface0 flex items-center cursor-grab focus:outline-none`;
+    box.className = 'node absolute box-border rounded-xl flex items-center gap-2 cursor-grab focus:outline-none';
     box.style.left = `${node.x}px`;
     box.style.top = `${node.y}px`;
     box.style.width = `${node.width}px`;
     box.style.minHeight = `${node.height}px`;
     box.style.padding = `${TYPE.padY}px ${TYPE.padX}px`;
+    box.style.setProperty('--accent', accentHex(node));
+    box.style.background = fillOf(node);
     box.setAttribute('role', 'treeitem');
     box.setAttribute('tabindex', '-1');
     box.setAttribute('aria-level', String(depthOf(node.id)));
@@ -605,19 +655,23 @@
     box.setAttribute('aria-posinset', String(peers.findIndex((p) => p.id === node.id) + 1));
     const kids = childrenOf(node.id);
     if (kids.length) box.setAttribute('aria-expanded', node.collapsed ? 'false' : 'true');
-    box.setAttribute('aria-label', node.note ? `${node.text || 'Empty node'}. Has a note.` : (node.text || 'Empty node'));
+    box.setAttribute('aria-label', node.note ? `${node.text || 'Empty node'}. Has Markdown.` : (node.text || 'Empty node'));
 
     const text = document.createElement('div');
-    text.className = `node-text w-full break-words whitespace-pre-wrap leading-5 pointer-coarse:text-[16px] ${root ? 'text-[15px] font-semibold text-text' : 'text-sm text-text'}`;
+    text.className = `node-text flex-1 min-w-0 break-words whitespace-pre-wrap leading-5 ${root ? 'text-[15px] font-semibold text-text' : 'text-sm text-text'}`;
     text.dataset.placeholder = 'New idea';
     text.textContent = node.text;
     box.append(text);
 
     if (node.note) {
-      const mark = document.createElement('i');
-      mark.dataset.lucide = 'sticky-note';
-      mark.className = 'absolute -top-2 -right-2 w-3.5 h-3.5 text-overlay2 bg-crust rounded-sm';
-      mark.setAttribute('aria-hidden', 'true');
+      const mark = document.createElement('button');
+      mark.type = 'button';
+      mark.dataset.role = 'note';
+      mark.tabIndex = -1;
+      mark.className = 'node-note shrink-0 w-3.5 h-3.5 opacity-80 hover:opacity-100 focus:outline-none';
+      mark.title = 'Open the Markdown (Ctrl+Enter)';
+      mark.setAttribute('aria-label', 'Open the Markdown');
+      mark.innerHTML = '<i data-lucide="file-text" class="w-3.5 h-3.5"></i>';
       box.append(mark);
     }
 
@@ -626,7 +680,7 @@
       toggle.type = 'button';
       toggle.dataset.role = 'toggle';
       toggle.tabIndex = -1;
-      toggle.className = `absolute top-1/2 -translate-y-1/2 -right-3 w-5 h-5 rounded-full bg-crust border border-${accent} text-[10px] leading-none text-${accent} grid place-items-center focus:outline-none pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']`;
+      toggle.className = 'node-toggle absolute top-1/2 -translate-y-1/2 -right-2.5 w-5 h-5 rounded-full bg-mantle text-[10px] font-semibold leading-none grid place-items-center focus:outline-none';
       toggle.textContent = node.collapsed ? String(descendants(node.id).length) : '−';
       toggle.setAttribute('aria-label', node.collapsed ? `Expand ${node.text}` : `Collapse ${node.text}`);
       box.append(toggle);
@@ -634,13 +688,13 @@
 
     const handle = document.createElement('div');
     handle.dataset.role = 'resize';
-    handle.className = "node-handle hidden absolute -bottom-1.5 -right-1.5 w-3 h-3 rounded-sm bg-mauve cursor-nwse-resize pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-['']";
+    handle.className = 'node-handle hidden absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-sm cursor-nwse-resize';
     handle.title = 'Drag to resize';
     box.append(handle);
 
     const port = document.createElement('div');
     port.dataset.role = 'port';
-    port.className = "node-port hidden absolute top-1/2 -translate-y-1/2 -left-2.5 w-3 h-3 rounded-full bg-mauve cursor-crosshair pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-['']";
+    port.className = 'node-port hidden absolute top-1/2 -translate-y-1/2 -left-2 w-2.5 h-2.5 rounded-full cursor-crosshair';
     port.title = 'Drag onto another node to link them';
     box.append(port);
 
@@ -654,7 +708,7 @@
       if (!n.parentId || !visible.has(n.id) || !visible.has(n.parentId)) continue;
       const p = nodeById(n.parentId);
       if (!p) continue;
-      parts.push(edgePath(p, n, PALETTE[accentOf(n)] || PALETTE.surface1, false));
+      parts.push(edgePath(p, n, accentHex(n), false));
     }
     for (const l of S.map.links || []) {
       const a = nodeById(l.from);
@@ -673,7 +727,7 @@
     const dx = Math.max(Math.abs(x2 - x1) * 0.5, 32);
     const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
     const dash = dashed ? ' stroke-dasharray="6 5"' : '';
-    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"${dash} opacity="${dashed ? 0.8 : 0.95}"/>`;
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"${dash} stroke-opacity="${dashed ? 0.7 : TINT.edge}"/>`;
   }
 
   function renderNodeGeometry(id) {
@@ -702,10 +756,8 @@
       const on = id === S.selected;
       box.setAttribute('aria-selected', on ? 'true' : 'false');
       box.setAttribute('tabindex', on ? '0' : '-1');
-      box.classList.toggle('ring-2', on);
-      box.classList.toggle('ring-mauve', on);
-      box.classList.toggle('ring-offset-2', on);
-      box.classList.toggle('ring-offset-crust', on);
+      box.classList.toggle('selected', on);
+      box.classList.remove('drop-target');
       box.querySelector('[data-role="resize"]').classList.toggle('hidden', !on);
       box.querySelector('[data-role="port"]').classList.toggle('hidden', !on);
     }
@@ -713,11 +765,15 @@
   }
 
   function select(id, { focus = true } = {}) {
+    const changed = id !== S.selected;
     S.selected = id;
+    if (changed && id) S.inspectorOpen = true;
+    if (changed && !id) S.inspectorOpen = false;
     syncSelectionUI();
     const box = S.nodeEls.get(id);
     if (box && focus) box.focus({ preventScroll: true });
     if (box) ensureVisible(id);
+    if (!id && focus) el.canvas.focus({ preventScroll: true });
   }
 
   function ensureVisible(id) {
@@ -775,16 +831,25 @@
     applyView();
   }
 
-  function setInspectorOpen(open) {
-    S.inspectorOpen = open;
-    S.inspectorClosedByUser = !open;
-    renderInspector();
-    el.toggleInspector.setAttribute('aria-expanded', open ? 'true' : 'false');
+  function applyPanels() {
+    const open = S.ui.sidebarOpen;
+    el.sidebar.classList.toggle('hidden', !open);
+    el.sidebarResizer.classList.toggle('hidden', !open);
+    el.sidebar.style.width = `${S.ui.sidebarWidth}px`;
+    el.sidebarOpen.classList.toggle('hidden', open);
+    el.inspector.style.width = `${S.ui.inspectorWidth}px`;
   }
 
   function setSidebarOpen(open) {
-    el.sidebar.classList.toggle('max-md:hidden', !open);
-    el.sidebarOpen.setAttribute('aria-expanded', open ? 'true' : 'false');
+    S.ui.sidebarOpen = open;
+    saveUI();
+    applyPanels();
+    if (S.map) applyView();
+  }
+
+  function setInspectorOpen(open) {
+    S.inspectorOpen = open;
+    renderInspector();
   }
 
   function renderInspector() {
@@ -792,10 +857,13 @@
     const show = !!node && S.inspectorOpen;
     el.inspector.classList.toggle('hidden', !show);
     el.inspector.classList.toggle('flex', show);
+    el.inspectorResizer.classList.toggle('hidden', !show);
+    el.toggleInspector.setAttribute('aria-expanded', show ? 'true' : 'false');
+    el.toggleInspector.classList.toggle('text-text', show);
     if (!node) return;
     if (document.activeElement !== el.inspText) el.inspText.value = node.text;
     if (document.activeElement !== el.inspNote) el.inspNote.value = node.note || '';
-    el.inspNoteCount.textContent = `${(node.note || '').length} / ${LIMITS.note}`;
+    el.inspNoteOpen.disabled = !node.note;
     el.inspDelete.disabled = isRoot(node.id);
     el.inspDelete.classList.toggle('opacity-40', isRoot(node.id));
     for (const btn of el.inspAccents.querySelectorAll('button')) {
@@ -804,6 +872,8 @@
       btn.tabIndex = on ? 0 : -1;
       btn.classList.toggle('ring-2', on);
       btn.classList.toggle('ring-text', on);
+      btn.classList.toggle('ring-offset-2', on);
+      btn.classList.toggle('ring-offset-mantle', on);
     }
   }
 
@@ -817,7 +887,8 @@
       b.setAttribute('aria-label', label);
       b.title = label;
       b.tabIndex = -1;
-      b.className = `w-7 h-7 rounded-full border border-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve ${value ? `bg-${value}` : 'bg-surface1'}`;
+      b.className = 'w-6 h-6 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve';
+      b.style.background = value ? PALETTE[value] : PALETTE.surface1;
       b.addEventListener('click', () => pickAccent(value));
       return b;
     };
@@ -839,7 +910,7 @@
 
   function pickAccent(value) {
     const node = nodeById(S.selected);
-    if (!node) return;
+    if (!node || (node.accent || '') === value) return;
     mutate(() => { node.accent = value; });
     renderAll();
     select(S.selected, { focus: false });
@@ -937,7 +1008,7 @@
   function startEditing(nodeId) {
     const box = S.nodeEls.get(nodeId);
     const node = nodeById(nodeId);
-    if (!box || !node) return;
+    if (!box || !node || S.editing) return;
     const text = box.querySelector('.node-text');
     const original = node.text;
     S.editing = true;
@@ -991,6 +1062,27 @@
     text.addEventListener('paste', onPaste);
   }
 
+  function renderMarkdown(source) {
+    const html = marked.parse(source || '', { gfm: true, breaks: false });
+    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, ADD_ATTR: ['target'] });
+  }
+
+  function openMarkdown(nodeId) {
+    const node = nodeById(nodeId);
+    if (!node) return;
+    if (!node.note) {
+      setInspectorOpen(true);
+      el.inspNote.focus();
+      return;
+    }
+    el.mdTitle.textContent = node.text || 'Empty node';
+    el.mdBody.innerHTML = renderMarkdown(node.note);
+    for (const a of el.mdBody.querySelectorAll('a[href]')) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    el.md.dataset.node = nodeId;
+    if (!el.md.open) el.md.showModal();
+    el.mdBody.scrollTop = 0;
+  }
+
   function toMap(clientX, clientY) {
     const rect = el.canvas.getBoundingClientRect();
     return {
@@ -1010,17 +1102,6 @@
     return null;
   }
 
-  const pointers = new Map();
-
-  function pinchFrom() {
-    const [a, b] = [...pointers.values()];
-    return {
-      dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
-      cx: (a.x + b.x) / 2,
-      cy: (a.y + b.y) / 2,
-    };
-  }
-
   function abandonDrag() {
     const d = S.drag;
     S.drag = null;
@@ -1037,18 +1118,12 @@
 
   el.canvas.addEventListener('pointerdown', (ev) => {
     if (!S.map || ev.button !== 0) return;
-    pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-    if (pointers.size === 2) {
-      abandonDrag();
-      const p = pinchFrom();
-      S.drag = { kind: 'pinch', dist: p.dist, cx: p.cx, cy: p.cy, vx: S.view.x, vy: S.view.y, k: S.view.k };
-      return;
-    }
     closeExportMenu();
     const box = ev.target.closest('.node');
 
     if (!box) {
-      el.canvas.focus({ preventScroll: true });
+      if (S.editing) return;
+      select(null);
       S.drag = { kind: 'pan', startX: ev.clientX, startY: ev.clientY, vx: S.view.x, vy: S.view.y };
       el.canvas.setPointerCapture(ev.pointerId);
       el.canvas.style.cursor = 'grabbing';
@@ -1056,8 +1131,10 @@
     }
 
     const id = box.dataset.id;
-    const role = ev.target.dataset.role;
+    const roleEl = ev.target.closest('[data-role]');
+    const role = roleEl ? roleEl.dataset.role : '';
     if (role === 'toggle') { ev.preventDefault(); toggleCollapse(id); return; }
+    if (role === 'note') { ev.preventDefault(); select(id, { focus: false }); openMarkdown(id); return; }
 
     select(id);
     if (S.editing && !role) return;
@@ -1081,21 +1158,7 @@
 
   el.canvas.addEventListener('pointermove', (ev) => {
     const d = S.drag;
-    if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (!d) return;
-    if (d.kind === 'pinch') {
-      if (pointers.size < 2) return;
-      const p = pinchFrom();
-      const rect = el.canvas.getBoundingClientRect();
-      const next = clampNum(d.k * (p.dist / d.dist), ZOOM.min, ZOOM.max);
-      const px = d.cx - rect.left;
-      const py = d.cy - rect.top;
-      S.view.x = px - (px - d.vx) * (next / d.k) + (p.cx - d.cx);
-      S.view.y = py - (py - d.vy) * (next / d.k) + (p.cy - d.cy);
-      S.view.k = next;
-      applyView();
-      return;
-    }
     if (d.kind === 'pan') {
       S.view.x = d.vx + (ev.clientX - d.startX);
       S.view.y = d.vy + (ev.clientY - d.startY);
@@ -1137,17 +1200,14 @@
       const x1 = from.x;
       const y1 = from.y + from.height / 2;
       renderEdges();
-      el.edges.innerHTML += `<path d="M ${x1} ${y1} L ${p.x} ${p.y}" fill="none" stroke="${PALETTE.mauve}" stroke-width="2" stroke-dasharray="4 4"/>`;
+      el.edges.innerHTML += `<path d="M ${x1} ${y1} L ${p.x} ${p.y}" fill="none" stroke="${PALETTE.overlay1}" stroke-width="2" stroke-dasharray="4 4"/>`;
       highlightDropTarget(nodeAt(ev.clientX, ev.clientY, d.id), d.id);
     }
   });
 
   function highlightDropTarget(target, excludeId) {
     for (const [id, box] of S.nodeEls) {
-      const on = target && target.id === id && id !== excludeId;
-      box.classList.toggle('ring-2', on || id === S.selected);
-      box.classList.toggle('ring-green', !!on);
-      box.classList.toggle('ring-mauve', !on && id === S.selected);
+      box.classList.toggle('drop-target', !!target && target.id === id && id !== excludeId);
     }
   }
 
@@ -1158,18 +1218,16 @@
   }
 
   el.canvas.addEventListener('pointerup', (ev) => {
-    pointers.delete(ev.pointerId);
     if (el.canvas.hasPointerCapture(ev.pointerId)) el.canvas.releasePointerCapture(ev.pointerId);
     const d = S.drag;
     S.drag = null;
-    if (d && d.kind === 'pinch') return;
     el.canvas.style.cursor = '';
     if (!d) return;
 
     if (d.kind === 'node') {
       const box = S.nodeEls.get(d.id);
       if (box) box.style.cursor = '';
-      if (!d.moved) { highlightDropTarget(null, d.id); syncSelectionUI(); return; }
+      if (!d.moved) { syncSelectionUI(); return; }
       const target = ev.shiftKey ? nodeAt(ev.clientX, ev.clientY, d.id) : null;
       if (target) {
         const node = nodeById(d.id);
@@ -1193,19 +1251,15 @@
       const target = nodeAt(ev.clientX, ev.clientY, d.id);
       if (target) addLink(d.id, target.id);
       else renderEdges();
-      highlightDropTarget(null, d.id);
       syncSelectionUI();
     }
   });
 
-  el.canvas.addEventListener('pointercancel', (ev) => {
-    pointers.delete(ev.pointerId);
-    abandonDrag();
-  });
+  el.canvas.addEventListener('pointercancel', () => abandonDrag());
 
   el.canvas.addEventListener('dblclick', (ev) => {
     const box = ev.target.closest('.node');
-    if (box) { ev.preventDefault(); startEditing(box.dataset.id); }
+    if (box && !ev.target.closest('[data-role]')) { ev.preventDefault(); startEditing(box.dataset.id); }
   });
 
   el.canvas.addEventListener('wheel', (ev) => {
@@ -1220,6 +1274,32 @@
     applyView();
   }, { passive: false });
 
+  function bindResizer(handle, key, bounds, fromRight) {
+    handle.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      const startX = ev.clientX;
+      const startW = S.ui[key];
+      handle.classList.add('active');
+      handle.setPointerCapture(ev.pointerId);
+      const move = (e) => {
+        const delta = fromRight ? startX - e.clientX : e.clientX - startX;
+        S.ui[key] = Math.round(clampNum(startW + delta, bounds.min, bounds.max));
+        applyPanels();
+      };
+      const up = () => {
+        handle.classList.remove('active');
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', up);
+        handle.removeEventListener('pointercancel', up);
+        saveUI();
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+      handle.addEventListener('pointercancel', up);
+    });
+  }
+
   function inTextField(target) {
     if (!target) return false;
     const tag = target.tagName;
@@ -1228,6 +1308,7 @@
 
   document.addEventListener('keydown', (ev) => {
     const mod = ev.ctrlKey || ev.metaKey;
+    const anyDialog = el.help.open || el.dialog.open || el.md.open;
 
     if (mod && ev.key.toLowerCase() === 's') { ev.preventDefault(); saveNow(); return; }
     if (mod && ev.key.toLowerCase() === 'z') {
@@ -1242,22 +1323,31 @@
       redo();
       return;
     }
-
-    if (ev.key === '?' && !inTextField(ev.target) && !el.help.open && !el.dialog.open) {
+    if (ev.key === '?' && !inTextField(ev.target) && !anyDialog) {
       ev.preventDefault();
       el.help.showModal();
       return;
     }
-    if (inTextField(ev.target) || S.editing || !S.map) return;
-    const onNode = !!(ev.target.closest && ev.target.closest('#nodes'));
+    if (mod && ev.key === 'Enter' && S.map && S.selected && !anyDialog) {
+      ev.preventDefault();
+      openMarkdown(S.selected);
+      return;
+    }
+    if (inTextField(ev.target) || S.editing || !S.map || anyDialog) return;
 
+    if (ev.key === '[') { ev.preventDefault(); setSidebarOpen(!S.ui.sidebarOpen); return; }
+    if (ev.key === ']') { ev.preventDefault(); toggleInspector(); return; }
     if (mod && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); zoomAt(1.2); return; }
     if (mod && ev.key === '-') { ev.preventDefault(); zoomAt(1 / 1.2); return; }
     if (mod && ev.key === '0') { ev.preventDefault(); fitToView(); return; }
     if (mod && ev.shiftKey && ev.key.toLowerCase() === 'l') { ev.preventDefault(); tidyLayout(); return; }
+    if (mod) return;
 
-    const id = S.selected;
-    if (!onNode || !id || !nodeById(id)) return;
+    let id = S.selected;
+    if (!id || !nodeById(id)) {
+      if (ev.key === 'Tab' || ev.key === 'Enter' || ev.key.startsWith('Arrow')) { ev.preventDefault(); select(S.map.rootId); }
+      return;
+    }
 
     switch (ev.key) {
       case 'Tab':
@@ -1266,17 +1356,24 @@
         addChild(id);
         break;
       case 'Enter': ev.preventDefault(); addSibling(id); break;
+      case ' ': ev.preventDefault(); startEditing(id); break;
       case 'F2': ev.preventDefault(); startEditing(id); break;
       case 'Delete': case 'Backspace': ev.preventDefault(); deleteNode(id); break;
       case 'ArrowLeft': ev.preventDefault(); moveSelection('parent'); break;
       case 'ArrowRight': ev.preventDefault(); moveSelection('child'); break;
       case 'ArrowUp': ev.preventDefault(); moveSelection('prev'); break;
       case 'ArrowDown': ev.preventDefault(); moveSelection('next'); break;
-      case ' ': ev.preventDefault(); toggleCollapse(id); break;
-      case 'Escape': ev.preventDefault(); el.canvas.focus({ preventScroll: true }); break;
+      case '/': ev.preventDefault(); toggleCollapse(id); break;
+      case 'Escape': ev.preventDefault(); select(null); break;
       default: break;
     }
   });
+
+  function toggleInspector() {
+    if (!S.map) return;
+    if (!S.selected) { select(S.map.rootId, { focus: false }); return; }
+    setInspectorOpen(!S.inspectorOpen);
+  }
 
   function moveSelection(dir) {
     const node = nodeById(S.selected);
@@ -1331,7 +1428,7 @@
     for (const n of S.map.nodes) {
       if (!n.parentId || !visible.has(n.id) || !visible.has(n.parentId)) continue;
       const p = nodeById(n.parentId);
-      if (p) parts.push(edgePath(p, n, PALETTE[accentOf(n)] || PALETTE.surface1, false));
+      if (p) parts.push(edgePath(p, n, accentHex(n), false));
     }
     for (const l of S.map.links || []) {
       const a = nodeById(l.from);
@@ -1342,10 +1439,10 @@
     for (const n of S.map.nodes) {
       if (!visible.has(n.id)) continue;
       const style = isRoot(n.id) ? TYPE.root : TYPE.node;
-      const stroke = PALETTE[accentOf(n)] || PALETTE.surface1;
-      const lines = wrapText(n.text || '', (n.width - TYPE.padX * 2) * 0.92, style);
+      const accent = accentHex(n);
+      const lines = wrapText(n.text || '', textWidth(n) * 0.92, style);
       const boxH = Math.max(n.height, lines.length * style.line + TYPE.padY * 2);
-      parts.push(`<rect x="${n.x}" y="${n.y}" width="${n.width}" height="${boxH}" rx="12" fill="${PALETTE.surface0}" stroke="${stroke}" stroke-width="2"/>`);
+      parts.push(`<rect x="${n.x}" y="${n.y}" width="${n.width}" height="${boxH}" rx="12" fill="${fillOf(n)}"/>`);
       const firstBaseline = n.y + boxH / 2 - ((lines.length - 1) * style.line) / 2 + style.size * 0.35;
       parts.push(`<text x="${n.x + TYPE.padX}" y="${firstBaseline}" fill="${PALETTE.text}" font-family="${TYPE.family}" font-size="${style.size}" font-weight="${style.weight}">`);
       lines.forEach((line, i) => {
@@ -1353,13 +1450,21 @@
       });
       parts.push('</text>');
 
+      if (n.note) {
+        const ix = n.x + n.width - TYPE.padX - 12;
+        const iy = n.y + boxH / 2 - 6;
+        parts.push(`<rect x="${ix}" y="${iy}" width="10" height="12" rx="1.5" fill="none" stroke="${accent}" stroke-width="1.5"/>`);
+        parts.push(`<line x1="${ix + 2.5}" y1="${iy + 4.5}" x2="${ix + 7.5}" y2="${iy + 4.5}" stroke="${accent}" stroke-width="1.2"/>`);
+        parts.push(`<line x1="${ix + 2.5}" y1="${iy + 7.5}" x2="${ix + 7.5}" y2="${iy + 7.5}" stroke="${accent}" stroke-width="1.2"/>`);
+      }
+
       if (n.collapsed) {
         const hidden = descendants(n.id).length;
         if (hidden) {
           const cx = n.x + n.width;
           const cy = n.y + boxH / 2;
-          parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${PALETTE.crust}" stroke="${stroke}" stroke-width="1.5"/>`);
-          parts.push(`<text x="${cx}" y="${cy + 3.5}" fill="${stroke}" text-anchor="middle" font-family="${TYPE.family}" font-size="10" font-weight="600">${hidden}</text>`);
+          parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${PALETTE.mantle}"/>`);
+          parts.push(`<text x="${cx}" y="${cy + 3.5}" fill="${accent}" text-anchor="middle" font-family="${TYPE.family}" font-size="10" font-weight="600">${hidden}</text>`);
         }
       }
     }
@@ -1370,7 +1475,7 @@
 
   function exportJson() {
     download(`${slug(S.map.title)}.json`, new Blob([JSON.stringify(S.map, null, 2)], { type: 'application/json' }));
-    toast('JSON exported. Import it back any time.', 'success');
+    toast('JSON exported.', 'success');
   }
 
   function exportSvg() {
@@ -1417,7 +1522,7 @@
     if (!S.map) return;
     const before = clone(S.map);
     try {
-      const laid = await api('POST', '/api/layout', S.map);
+      const laid = await api('POST', '/api/layout', { ...S.map, updatedAt: S.version });
       S.map.nodes = laid.nodes;
       invalidateIndex();
       pushUndo(before);
@@ -1439,7 +1544,7 @@
     await importMapFile(ev.target.files[0]);
     ev.target.value = '';
   });
-  el.saveRetry.addEventListener('click', saveNow);
+  el.saveStatus.addEventListener('click', () => { if (S.save.state === 'error') saveNow(); });
   el.undo.addEventListener('click', undo);
   el.redo.addEventListener('click', redo);
   el.tidy.addEventListener('click', tidyLayout);
@@ -1493,6 +1598,18 @@
     }
   });
 
+  // Panel fields update the node live and push one undo step when the field commits.
+  let fieldBefore = null;
+  const captureBefore = () => { fieldBefore = S.map ? clone(S.map) : null; };
+  const commitField = () => {
+    if (!S.map || !fieldBefore) return;
+    if (JSON.stringify(fieldBefore) !== JSON.stringify(S.map)) pushUndo(fieldBefore);
+    fieldBefore = null;
+    renderAll();
+    select(S.selected, { focus: false });
+  };
+
+  el.inspText.addEventListener('focus', captureBefore);
   el.inspText.addEventListener('input', () => {
     const node = nodeById(S.selected);
     if (!node) return;
@@ -1505,23 +1622,48 @@
     renderEdges();
     scheduleSave();
   });
+  el.inspText.addEventListener('change', commitField);
+
+  el.inspNote.addEventListener('focus', captureBefore);
   el.inspNote.addEventListener('input', () => {
     const node = nodeById(S.selected);
     if (!node) return;
     node.note = el.inspNote.value.slice(0, LIMITS.note);
-    el.inspNoteCount.textContent = `${node.note.length} / ${LIMITS.note}`;
+    el.inspNoteOpen.disabled = !node.note;
     scheduleSave();
   });
-  el.inspNote.addEventListener('change', () => renderAll());
+  el.inspNote.addEventListener('change', commitField);
+  el.inspNote.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Tab' && !ev.shiftKey) {
+      ev.preventDefault();
+      const { selectionStart: a, selectionEnd: b, value } = el.inspNote;
+      el.inspNote.value = `${value.slice(0, a)}  ${value.slice(b)}`;
+      el.inspNote.selectionStart = el.inspNote.selectionEnd = a + 2;
+      el.inspNote.dispatchEvent(new Event('input'));
+    }
+  });
+  el.inspNoteOpen.addEventListener('click', () => S.selected && openMarkdown(S.selected));
   el.inspAddChild.addEventListener('click', () => S.selected && addChild(S.selected));
   el.inspDelete.addEventListener('click', () => S.selected && deleteNode(S.selected));
   el.inspClose.addEventListener('click', () => setInspectorOpen(false));
-  el.toggleInspector.addEventListener('click', () => setInspectorOpen(!S.inspectorOpen));
+  el.toggleInspector.addEventListener('click', toggleInspector);
 
   el.sidebarOpen.addEventListener('click', () => setSidebarOpen(true));
   el.sidebarClose.addEventListener('click', () => setSidebarOpen(false));
   el.showHelp.addEventListener('click', () => { if (!el.help.open) el.help.showModal(); });
   el.helpClose.addEventListener('click', () => el.help.close());
+  el.mdClose.addEventListener('click', () => el.md.close());
+  el.mdEdit.addEventListener('click', () => {
+    const id = el.md.dataset.node;
+    el.md.close();
+    if (!nodeById(id)) return;
+    select(id, { focus: false });
+    setInspectorOpen(true);
+    el.inspNote.focus();
+  });
+
+  bindResizer(el.sidebarResizer, 'sidebarWidth', PANEL.sidebar, false);
+  bindResizer(el.inspectorResizer, 'inspectorWidth', PANEL.inspector, true);
 
   window.addEventListener('beforeunload', (ev) => {
     if (S.save.state === 'unsaved' || S.save.state === 'error') {
@@ -1533,10 +1675,12 @@
   const SHORTCUTS = [
     ['Tab', 'Add a child to the selected node'],
     ['Enter', 'Add a sibling'],
-    ['F2 / double click', 'Rename a node'],
+    ['Space / double click', 'Rename a node'],
     ['Delete', 'Delete the node and its branch'],
     ['Arrow keys', 'Walk parent, child and siblings'],
-    ['Space', 'Collapse or expand a branch'],
+    ['/', 'Collapse or expand a branch'],
+    ['Ctrl/Cmd + Enter', 'Open the rendered Markdown'],
+    ['Esc', 'Deselect'],
     ['Shift + drag', 'Drop a node on another to reparent it'],
     ['Drag the left dot', 'Draw a cross link between two nodes'],
     ['Ctrl/Cmd + Z', 'Undo'],
@@ -1545,13 +1689,15 @@
     ['Ctrl/Cmd + scroll', 'Zoom at the pointer'],
     ['Ctrl/Cmd + 0', 'Fit the map to the screen'],
     ['Ctrl/Cmd + Shift + L', 'Tidy the layout'],
+    ['[', 'Show or hide the map list'],
+    [']', 'Show or hide the node panel'],
     ['?', 'Open this panel'],
   ];
 
   function buildHelp() {
     for (const [keys, what] of SHORTCUTS) {
       const dt = document.createElement('dt');
-      dt.className = 'font-mono text-xs text-text whitespace-nowrap';
+      dt.className = 'font-mono text-xs text-text whitespace-nowrap pt-0.5';
       dt.textContent = keys;
       const dd = document.createElement('dd');
       dd.className = 'text-subtext0';
@@ -1560,20 +1706,24 @@
     }
   }
 
+  const narrow = window.matchMedia('(orientation: portrait), (max-width: 767px)');
+  function checkViewport() {
+    el.desktopOnly.classList.toggle('hidden', !narrow.matches);
+    el.desktopOnly.classList.toggle('grid', narrow.matches);
+  }
+
   async function boot() {
     buildHelp();
     buildAccentPicker();
+    applyPanels();
     showCanvasState('empty');
     setSaveState('idle');
     updateHistoryButtons();
-    window.lucide && lucide.createIcons();
+    checkViewport();
+    icons();
 
-    try {
-      const health = await api('GET', '/api/health');
-      el.helpDataDir.textContent = health.dataDir || 'unknown';
-      el.versionLine.textContent = `inoichi ${health.version || 'dev-build'}`;
-    } catch {
-      el.versionLine.textContent = 'server unreachable';
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
 
     await refreshSummaries();
@@ -1583,10 +1733,8 @@
     if (target) openMap(target.id);
   }
 
-  window.addEventListener('resize', () => {
-    if (S.map) applyView();
-    if (wideScreen() && !S.inspectorOpen && !S.inspectorClosedByUser) setInspectorOpen(true);
-  });
+  narrow.addEventListener('change', checkViewport);
+  window.addEventListener('resize', () => { if (S.map) applyView(); });
 
   boot();
 })();
