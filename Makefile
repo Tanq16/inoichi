@@ -17,7 +17,7 @@ DATA_DIR ?= ./data
 # Pinned asset versions. Bump deliberately, never float.
 TAILWIND_VERSION := 4.3.3
 LUCIDE_VERSION   := 1.34.0
-MARKED_VERSION   := 18.0.13
+MARKED_VERSION   := 18.0.11
 HIGHLIGHTJS_VERSION := 11.12.0
 DOMPURIFY_VERSION := 3.4.15
 MERMAID_VERSION  := 11.17.2

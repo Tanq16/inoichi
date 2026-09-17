@@ -33,7 +33,7 @@ var rootCmd = &cobra.Command{
 	Short:             "A local-first mind mapping editor served from one binary",
 	Version:           AppVersion,
 	Args:              cobra.NoArgs,
-	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 	Run: func(cmd *cobra.Command, args []string) {
 		store, err := storage.New(flags.dataDir)
 		if err != nil {
@@ -71,7 +71,8 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().BoolVar(&flags.debug, "debug", false, "log at debug level instead of info")
+	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+	rootCmd.PersistentFlags().BoolVar(&flags.debug, "debug", false, "log at debug level instead of info")
 	rootCmd.Flags().StringVar(&flags.host, "host", cmp.Or(os.Getenv("INOICHI_HOST"), "127.0.0.1"), "address to bind")
 	rootCmd.Flags().IntVarP(&flags.port, "port", "p", envPort(), "port to listen on")
 	rootCmd.Flags().StringVarP(&flags.dataDir, "data-dir", "d", cmp.Or(os.Getenv("INOICHI_DATA_DIR"), "data"), "directory holding the map files")

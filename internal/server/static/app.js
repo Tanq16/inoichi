@@ -1,15 +1,16 @@
 (() => {
   'use strict';
 
-  const PALETTE = {
-    rosewater: '#f5e0dc', flamingo: '#f2cdcd', pink: '#f5c2e7', mauve: '#cba6f7',
-    red: '#f38ba8', maroon: '#eba0ac', peach: '#fab387', yellow: '#f9e2af',
-    green: '#a6e3a1', teal: '#94e2d5', sky: '#89dceb', sapphire: '#74c7ec',
-    blue: '#89b4fa', lavender: '#b4befe', text: '#cdd6f4', subtext0: '#a6adc8',
-    overlay1: '#7f849c', overlay0: '#6c7086', surface2: '#585b70',
-    surface1: '#45475a', surface0: '#313244', base: '#1e1e2e',
-    mantle: '#181825', crust: '#11111b',
-  };
+  const CTP_NAMES = [
+    'rosewater', 'flamingo', 'pink', 'mauve', 'red', 'maroon', 'peach', 'yellow',
+    'green', 'teal', 'sky', 'sapphire', 'blue', 'lavender', 'text', 'subtext1',
+    'subtext0', 'overlay2', 'overlay1', 'overlay0', 'surface2', 'surface1',
+    'surface0', 'base', 'mantle', 'crust',
+  ];
+  const PALETTE = (() => {
+    const css = getComputedStyle(document.documentElement);
+    return Object.fromEntries(CTP_NAMES.map((name) => [name, css.getPropertyValue(`--ctp-${name}`).trim()]));
+  })();
   const ACCENTS = ['mauve', 'blue', 'green', 'peach', 'pink', 'teal', 'yellow', 'red', 'sapphire', 'lavender'];
   const LIMITS = { text: 512, note: 20000, title: 120, nodes: 2000 };
   const TYPE = {
@@ -1067,8 +1068,7 @@
   const escapeHtml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   function mermaidConfig() {
-    const css = getComputedStyle(document.documentElement);
-    const c = (name) => css.getPropertyValue(`--ctp-${name}`).trim();
+    const c = (name) => PALETTE[name];
     return {
       startOnLoad: false,
       theme: 'base',
