@@ -10,7 +10,7 @@
     <title>Inoichi</title>
 
     <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="icon" type="image/svg+xml" href="/static/icons/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
     <link rel="icon" type="image/x-icon" href="/static/icons/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
@@ -44,9 +44,9 @@
       ::-webkit-scrollbar-thumb { background: var(--ctp-surface1); border-radius: 9999px; }
       ::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface2); }
       textarea::-webkit-resizer {
-        background: linear-gradient(135deg, transparent 0 50%, var(--ctp-overlay0) 50% 60%, transparent 60% 70%, var(--ctp-overlay0) 70% 80%, transparent 80%);
+        background: linear-gradient(135deg, transparent 0 58%, var(--ctp-overlay0) 58% 66%, transparent 66% 74%, var(--ctp-overlay0) 74% 82%, transparent 82%);
         background-clip: content-box;
-        padding: 0 3px 3px 0;
+        padding: 0 4px 4px 0;
       }
 
       .node { --accent: var(--ctp-overlay0); }
@@ -159,7 +159,7 @@
 
 <div id="desktop-only" class="hidden fixed inset-0 z-50 bg-crust grid place-items-center px-8 text-center" role="alertdialog" aria-labelledby="desktop-only-title">
   <div class="max-w-sm">
-    <img src="/static/icons/logo.png" alt="" class="w-14 h-14 mx-auto" width="56" height="56">
+    <img src="/static/icons/logo.svg" alt="" class="w-14 h-14 mx-auto" width="56" height="56">
     <h1 id="desktop-only-title" class="mt-4 text-xl font-display font-semibold text-text">Inoichi needs a desktop window</h1>
     <p class="mt-2 text-sm text-subtext0">The editor is built for a landscape screen with a keyboard and a pointer. Open it on a desktop, or widen this window.</p>
   </div>
@@ -169,7 +169,7 @@
 
   <aside id="sidebar" class="shrink-0 bg-crust flex flex-col" aria-label="Maps">
     <div class="h-12 px-3 flex items-center gap-2 shrink-0">
-      <img src="/static/icons/logo.png" alt="" class="w-6 h-6" width="24" height="24">
+      <img src="/static/icons/logo.svg" alt="" class="w-6 h-6" width="24" height="24">
       <span class="text-base font-semibold font-display text-text">Inoichi</span>
       <button id="sidebar-close" class="icon-btn ml-auto" aria-label="Hide the map list" title="Hide the map list ([)">
         <i data-lucide="panel-left-close" class="w-4 h-4"></i>

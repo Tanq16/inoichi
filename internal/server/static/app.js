@@ -56,7 +56,6 @@
     undo: [], redo: [],
     save: { state: 'idle', timer: null, deadline: 0, inflight: false, pending: false, blipTimer: null },
     ui: loadUI(),
-    inspectorOpen: false,
     mapListKey: '',
     nodeEls: new Map(),
     index: null,
@@ -68,7 +67,7 @@
   const clampNum = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
   function loadUI() {
-    const defaults = { sidebarWidth: PANEL.sidebar.initial, sidebarOpen: true, inspectorWidth: PANEL.inspector.initial };
+    const defaults = { sidebarWidth: PANEL.sidebar.initial, sidebarOpen: true, inspectorWidth: PANEL.inspector.initial, inspectorOpen: true };
     try {
       const stored = JSON.parse(localStorage.getItem('inoichi:ui') || '{}');
       return { ...defaults, ...stored };
@@ -765,8 +764,6 @@
   function select(id, { focus = true } = {}) {
     const changed = id !== S.selected;
     S.selected = id;
-    if (changed && id) S.inspectorOpen = true;
-    if (changed && !id) S.inspectorOpen = false;
     syncSelectionUI();
     const box = S.nodeEls.get(id);
     if (box && focus) box.focus({ preventScroll: true });
@@ -846,18 +843,20 @@
   }
 
   function setInspectorOpen(open) {
-    S.inspectorOpen = open;
+    S.ui.inspectorOpen = open;
+    saveUI();
     renderInspector();
+    if (S.map) applyView();
   }
 
   function renderInspector() {
     const node = S.selected && nodeById(S.selected);
-    const show = !!node && S.inspectorOpen;
+    const show = !!node && S.ui.inspectorOpen;
     el.inspector.classList.toggle('hidden', !show);
     el.inspector.classList.toggle('flex', show);
     el.inspectorResizer.classList.toggle('hidden', !show);
+    el.toggleInspector.classList.toggle('hidden', show);
     el.toggleInspector.setAttribute('aria-expanded', show ? 'true' : 'false');
-    el.toggleInspector.classList.toggle('text-text', show);
     if (!node) return;
     if (document.activeElement !== el.inspText) el.inspText.value = node.text;
     if (document.activeElement !== el.inspNote) el.inspNote.value = node.note || '';
@@ -914,7 +913,7 @@
     select(S.selected, { focus: false });
   }
 
-  function addChild(parentId, { edit = true } = {}) {
+  async function addChild(parentId, { edit = true } = {}) {
     const parent = nodeById(parentId);
     if (!parent) return;
     if (S.map.nodes.length >= LIMITS.nodes) { toast(`A map holds at most ${LIMITS.nodes} nodes.`, 'error'); return; }
@@ -934,6 +933,7 @@
     });
     renderAll();
     select(id);
+    await relayout();
     if (edit) startEditing(id);
     announce('Child node added');
   }
@@ -967,6 +967,7 @@
     renderAll();
     select(S.selected);
     announce(`Removed ${doomed.size} node${doomed.size === 1 ? '' : 's'}`);
+    relayout();
   }
 
   function toggleCollapse(nodeId) {
@@ -976,6 +977,7 @@
     renderAll();
     select(nodeId);
     announce(node.collapsed ? 'Branch collapsed' : 'Branch expanded');
+    relayout();
   }
 
   function addLink(fromId, toId) {
@@ -1300,13 +1302,15 @@
       if (box) box.style.cursor = '';
       if (!d.moved) { syncSelectionUI(); return; }
       const target = ev.shiftKey ? nodeAt(ev.clientX, ev.clientY, d.id) : null;
+      let reparented = false;
       if (target) {
         const node = nodeById(d.id);
         if (isRoot(d.id)) toast('The root node cannot be reparented.', 'error');
         else if (descendants(d.id).includes(target.id)) toast('A node cannot become a child of its own branch.', 'error');
-        else if (node.parentId !== target.id) { node.parentId = target.id; announce('Node reparented'); }
+        else if (node.parentId !== target.id) { node.parentId = target.id; reparented = true; announce('Node reparented'); }
       }
       commitDrag(d.before, d.id);
+      if (reparented) relayout();
       return;
     }
 
@@ -1315,6 +1319,7 @@
       const node = nodeById(d.id);
       node.height = clampNum(Math.max(node.height, measureHeight(node)), SIZE.minH, SIZE.maxH);
       commitDrag(d.before, d.id);
+      relayout();
       return;
     }
 
@@ -1442,8 +1447,9 @@
 
   function toggleInspector() {
     if (!S.map) return;
-    if (!S.selected) { select(S.map.rootId, { focus: false }); return; }
-    setInspectorOpen(!S.inspectorOpen);
+    const shown = !el.inspector.classList.contains('hidden');
+    if (!S.selected) select(S.map.rootId, { focus: false });
+    setInspectorOpen(!shown);
   }
 
   function moveSelection(dir) {
@@ -1589,21 +1595,39 @@
     el.exportBtn.setAttribute('aria-expanded', 'false');
   }
 
+  let layoutSeq = 0;
+  async function relayout() {
+    const map = S.map;
+    if (!map) return false;
+    const seq = ++layoutSeq;
+    let laid;
+    try {
+      laid = await api('POST', '/api/layout', { ...map, updatedAt: S.version });
+    } catch (e) {
+      toast(e.message, 'error');
+      return false;
+    }
+    if (seq !== layoutSeq || map !== S.map) return false;
+    const placed = new Map(laid.nodes.map((n) => [n.id, n]));
+    for (const n of S.map.nodes) {
+      const p = placed.get(n.id);
+      if (p) { n.x = p.x; n.y = p.y; }
+    }
+    invalidateIndex();
+    for (const id of S.nodeEls.keys()) renderNodeGeometry(id);
+    renderEdges();
+    if (S.selected) ensureVisible(S.selected);
+    scheduleSave();
+    return true;
+  }
+
   async function tidyLayout() {
     if (!S.map) return;
     const before = clone(S.map);
-    try {
-      const laid = await api('POST', '/api/layout', { ...S.map, updatedAt: S.version });
-      S.map.nodes = laid.nodes;
-      invalidateIndex();
-      pushUndo(before);
-      renderAll();
-      fitToView();
-      select(S.selected, { focus: false });
-      announce('Layout tidied');
-    } catch (e) {
-      toast(e.message, 'error');
-    }
+    if (!(await relayout())) return;
+    pushUndo(before);
+    fitToView();
+    announce('Layout tidied');
   }
 
   el.newMap.addEventListener('click', createMap);
