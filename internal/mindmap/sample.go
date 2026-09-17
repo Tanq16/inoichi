@@ -33,6 +33,13 @@ inoichi --port 8080
 | Tab | Adds a child |
 | Enter | Adds a sibling |
 | Space | Renames |
+
+A ` + "`mermaid`" + ` fence renders as a diagram:
+
+` + "```" + `mermaid
+flowchart LR
+  Node --> Markdown --> Diagram
+` + "```" + `
 `,
 	children: []sampleNode{
 		{

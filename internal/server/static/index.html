@@ -24,6 +24,7 @@
     <script src="/static/js/marked.umd.js"></script>
     <script src="/static/js/highlight.min.js"></script>
     <script src="/static/js/purify.min.js"></script>
+    <script src="/static/js/mermaid.min.js"></script>
     <script src="/static/js/tailwind.js"></script>
     <style>
       /* Catppuccin Mocha */
@@ -118,6 +119,18 @@
       .callout.warning .callout-icon { color: var(--ctp-peach); }
       .callout.note { background-color: color-mix(in oklab, var(--ctp-mauve) 10%, transparent); }
       .callout.note .callout-icon { color: var(--ctp-mauve); }
+      .mermaid { background-color: var(--ctp-base); padding: 1rem; border-radius: 0.5rem; margin: 1.5rem 0; text-align: center; overflow-x: auto; }
+      .mermaid .grid .tick line { stroke: var(--ctp-surface0) !important; stroke-width: 0.5px !important; opacity: 0.5 !important; }
+      .mermaid .grid .tick text { fill: var(--ctp-subtext0) !important; }
+      .mermaid .grid path { stroke: var(--ctp-surface0) !important; stroke-width: 0.5px !important; }
+      .mermaid .section { stroke: none !important; }
+      .mermaid .section0, .mermaid .section2 { fill: var(--ctp-mantle) !important; }
+      .mermaid .section1, .mermaid .section3 { fill: var(--ctp-base) !important; }
+      .mermaid .today { stroke: var(--ctp-red) !important; stroke-width: 2px !important; }
+      .mermaid .taskText { fill: var(--ctp-base) !important; font-size: 0.75em !important; }
+      .mermaid .taskTextOutsideRight, .mermaid .taskTextOutsideLeft { fill: var(--ctp-text) !important; }
+      .mermaid .sectionTitle { fill: var(--ctp-mauve) !important; }
+      .mermaid .titleText { fill: var(--ctp-mauve) !important; }
     </style>
     <style type="text/tailwindcss">
       @theme {

@@ -20,6 +20,7 @@ LUCIDE_VERSION   := 1.34.0
 MARKED_VERSION   := 18.0.13
 HIGHLIGHTJS_VERSION := 11.12.0
 DOMPURIFY_VERSION := 3.4.15
+MERMAID_VERSION  := 11.17.2
 
 STATIC_DIR := internal/server/static
 JS_DIR     := $(STATIC_DIR)/js
@@ -63,6 +64,7 @@ $(STAMP): $(MAKEFILE_LIST)
 	@curl -sfL "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@$(HIGHLIGHTJS_VERSION)/highlight.min.js" -o "$(JS_DIR)/highlight.min.js"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@$(HIGHLIGHTJS_VERSION)/styles/github-dark.min.css" -o "$(CSS_DIR)/github-dark.min.css"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/dompurify@$(DOMPURIFY_VERSION)/dist/purify.min.js" -o "$(JS_DIR)/purify.min.js"
+	@curl -sfL "https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js" -o "$(JS_DIR)/mermaid.min.js"
 	@$(MAKE) --no-print-directory font FAMILY="Inter" SLUG=inter WEIGHTS="400;500;600;700"
 	@$(MAKE) --no-print-directory font FAMILY="Google+Sans" SLUG=google-sans WEIGHTS="400;500;700"
 	@$(MAKE) --no-print-directory font FAMILY="JetBrains+Mono" SLUG=jetbrains-mono WEIGHTS="400;700"
@@ -90,6 +92,7 @@ verify-assets: ## Fail early if the embedded tree is missing an asset
 	@test -s $(JS_DIR)/highlight.min.js || (echo "highlight.min.js missing, run 'make assets'" && exit 1)
 	@test -s $(CSS_DIR)/github-dark.min.css || (echo "github-dark.min.css missing, run 'make assets'" && exit 1)
 	@test -s $(JS_DIR)/purify.min.js || (echo "purify.min.js missing, run 'make assets'" && exit 1)
+	@test -s $(JS_DIR)/mermaid.min.js || (echo "mermaid.min.js missing, run 'make assets'" && exit 1)
 	@test -s $(CSS_DIR)/inter.css || (echo "inter.css missing, run 'make assets'" && exit 1)
 	@test -s $(CSS_DIR)/google-sans.css || (echo "google-sans.css missing, run 'make assets'" && exit 1)
 	@test -s $(CSS_DIR)/jetbrains-mono.css || (echo "jetbrains-mono.css missing, run 'make assets'" && exit 1)

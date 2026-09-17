@@ -913,7 +913,7 @@
     select(S.selected, { focus: false });
   }
 
-  async function addChild(parentId, { edit = true } = {}) {
+  function addChild(parentId, { edit = true } = {}) {
     const parent = nodeById(parentId);
     if (!parent) return;
     if (S.map.nodes.length >= LIMITS.nodes) { toast(`A map holds at most ${LIMITS.nodes} nodes.`, 'error'); return; }
@@ -933,9 +933,9 @@
     });
     renderAll();
     select(id);
-    await relayout();
     if (edit) startEditing(id);
     announce('Child node added');
+    relayout();
   }
 
   function addSibling(nodeId) {
@@ -1064,9 +1064,111 @@
 
   const slugOf = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
+  const escapeHtml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function mermaidConfig() {
+    const css = getComputedStyle(document.documentElement);
+    const c = (name) => css.getPropertyValue(`--ctp-${name}`).trim();
+    return {
+      startOnLoad: false,
+      theme: 'base',
+      fontFamily: 'Inter',
+      themeVariables: {
+        darkMode: true,
+        background: c('base'),
+        mainBkg: c('base'),
+        primaryColor: c('surface0'),
+        primaryTextColor: c('text'),
+        primaryBorderColor: c('blue'),
+        secondaryColor: c('surface1'),
+        secondaryTextColor: c('text'),
+        secondaryBorderColor: c('overlay1'),
+        tertiaryColor: c('surface0'),
+        tertiaryTextColor: c('text'),
+        tertiaryBorderColor: c('surface2'),
+        lineColor: c('blue'),
+        arrowheadColor: c('blue'),
+        textColor: c('text'),
+        titleColor: c('mauve'),
+        noteBkgColor: c('surface1'),
+        noteTextColor: c('yellow'),
+        noteBorderColor: c('surface2'),
+        nodeBkg: c('surface0'),
+        nodeBorder: c('blue'),
+        clusterBkg: c('mantle'),
+        clusterBorder: c('surface2'),
+        defaultLinkColor: c('blue'),
+        edgeLabelBackground: c('surface0'),
+        nodeTextColor: c('text'),
+        actorBkg: c('surface0'),
+        actorBorder: c('blue'),
+        actorTextColor: c('text'),
+        actorLineColor: c('surface2'),
+        signalColor: c('pink'),
+        signalTextColor: c('text'),
+        labelBoxBkgColor: c('surface1'),
+        labelBoxBorderColor: c('surface2'),
+        labelTextColor: c('text'),
+        loopTextColor: c('yellow'),
+        activationBorderColor: c('mauve'),
+        activationBkgColor: c('surface1'),
+        sequenceNumberColor: c('base'),
+        sectionBkgColor: c('mantle'),
+        altSectionBkgColor: c('base'),
+        sectionBkgColor2: c('crust'),
+        taskBkgColor: c('blue'),
+        taskBorderColor: c('lavender'),
+        taskTextColor: c('base'),
+        taskTextLightColor: c('base'),
+        taskTextDarkColor: c('text'),
+        taskTextOutsideColor: c('text'),
+        taskTextClickableColor: c('sky'),
+        activeTaskBkgColor: c('mauve'),
+        activeTaskBorderColor: c('pink'),
+        doneTaskBkgColor: c('surface1'),
+        doneTaskBorderColor: c('surface2'),
+        critBkgColor: c('red'),
+        critBorderColor: c('maroon'),
+        gridColor: c('surface0'),
+        todayLineColor: c('red'),
+        pie1: c('mauve'), pie2: c('blue'), pie3: c('green'), pie4: c('yellow'),
+        pie5: c('red'), pie6: c('teal'), pie7: c('peach'), pie8: c('sky'),
+        pie9: c('pink'), pie10: c('sapphire'), pie11: c('maroon'), pie12: c('lavender'),
+        pieTitleTextColor: c('text'),
+        pieSectionTextColor: c('base'),
+        pieLegendTextColor: c('text'),
+        pieStrokeColor: c('base'),
+        pieOuterStrokeColor: c('surface0'),
+        git0: c('blue'), git1: c('mauve'), git2: c('green'), git3: c('yellow'),
+        git4: c('red'), git5: c('teal'), git6: c('peach'), git7: c('sapphire'),
+        gitInv0: c('base'), gitInv1: c('base'), gitInv2: c('base'), gitInv3: c('base'),
+        gitInv4: c('base'), gitInv5: c('base'), gitInv6: c('base'), gitInv7: c('base'),
+        commitLabelColor: c('subtext1'),
+        commitLabelBackground: c('base'),
+        tagLabelColor: c('base'),
+        tagLabelBackground: c('yellow'),
+        tagLabelBorder: c('peach'),
+        labelBackgroundColor: c('surface0'),
+        cScale0: c('surface0'), cScale1: c('blue'), cScale2: c('mauve'), cScale3: c('green'),
+        cScale4: c('yellow'), cScale5: c('red'), cScale6: c('teal'), cScale7: c('peach'),
+        cScale8: c('sky'), cScale9: c('pink'), cScale10: c('sapphire'), cScale11: c('lavender'),
+      },
+    };
+  }
+
+  function renderMermaid(root) {
+    const nodes = root.querySelectorAll('.mermaid');
+    if (!nodes.length) return;
+    mermaid.initialize(mermaidConfig());
+    mermaid.run({ nodes }).catch(() => {});
+  }
+
   function initMarked() {
     const renderer = {
       code(token) {
+        if (token.lang === 'mermaid') {
+          return `<div class="overflow-x-auto my-6"><div class="mermaid">${escapeHtml(token.text)}</div></div>`;
+        }
         const lang = hljs.getLanguage(token.lang) ? token.lang : 'plaintext';
         let highlighted = token.text;
         try {
@@ -1102,7 +1204,7 @@
 
   function addCopyButtons(root) {
     for (const block of root.querySelectorAll('pre')) {
-      if (block.querySelector('.copy-code-btn')) continue;
+      if (block.querySelector('.copy-code-btn') || block.querySelector('.mermaid')) continue;
       const codeEl = block.querySelector('code');
       if (!codeEl) continue;
       const button = document.createElement('button');
@@ -1149,10 +1251,11 @@
     el.mdTitle.textContent = node.text || 'Empty node';
     el.mdBody.innerHTML = renderMarkdown(node.note);
     for (const a of el.mdBody.querySelectorAll('a[href]')) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-    addCopyButtons(el.mdBody);
-    icons(el.mdBody);
     el.md.dataset.node = nodeId;
     if (!el.md.open) el.md.showModal();
+    addCopyButtons(el.mdBody);
+    renderMermaid(el.mdBody);
+    icons(el.mdBody);
     el.mdBody.scrollTop = 0;
   }
 

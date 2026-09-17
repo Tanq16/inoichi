@@ -17,7 +17,7 @@ It covers the part of a mind mapping tool most people use: draw a tree, move it 
 | Area | What you get |
 |---|---|
 | Editing | Drag, resize, reparent, cross-link, collapse, accent colours |
-| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal with highlighted code, callouts and copy buttons |
+| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal with highlighted code, Mermaid diagrams, callouts and copy buttons |
 | Keyboard | Tab, Enter, Space, Delete, arrow-key navigation, undo and redo, zoom, tidy layout |
 | Persistence | Maps live in memory on the server and reach disk a couple of seconds after the last change |
 | Getting out | Export JSON, SVG or PNG, and import any JSON this app exported |
