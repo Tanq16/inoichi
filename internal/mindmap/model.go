@@ -25,8 +25,6 @@ const (
 	CanvasExtent  = 100000
 	SchemaVersion = 1
 
-	// The practical size limit for one map. A map over it is refused as too
-	// large, even when every field is inside the limits Validate checks.
 	MaxDocumentBytes = 32 << 20
 )
 

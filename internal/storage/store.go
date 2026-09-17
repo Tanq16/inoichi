@@ -21,8 +21,6 @@ const (
 	dirMode  = 0o700
 	fileMode = 0o600
 
-	// FlushDelay is how long a saved map stays in memory before it reaches disk.
-	// Every save inside that window collapses into one write.
 	FlushDelay = 2 * time.Second
 
 	maxRetryDelay = 30 * time.Second
@@ -34,10 +32,7 @@ var (
 	ErrClosed   = errors.New("store is closed")
 )
 
-// Store keeps every map in memory and writes changed maps to disk after FlushDelay.
 type Store struct {
-	// OnWriteError is called from the flush goroutine when a map fails to reach disk.
-	// The map stays dirty and is retried. Set it before the first Save.
 	OnWriteError func(id string, err error)
 
 	dir        string
@@ -218,7 +213,6 @@ func (s *Store) Count() (int, error) {
 	return len(s.maps), nil
 }
 
-// Close writes every dirty map, stops the flush goroutine and returns the first write error.
 func (s *Store) Close() error {
 	s.closeOnce.Do(func() {
 		close(s.stop)
@@ -257,8 +251,7 @@ func (s *Store) run() {
 	}
 }
 
-// flush writes each dirty map under the lock, one at a time, so a Delete cannot
-// interleave with the rename that would bring a removed file back.
+// The write stays under the lock so a Delete cannot interleave with the rename that would bring a removed file back.
 func (s *Store) flush() error {
 	s.mu.Lock()
 	ids := slices.Sorted(maps.Keys(s.dirty))

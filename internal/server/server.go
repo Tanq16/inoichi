@@ -74,7 +74,6 @@ func (s *Server) SeedSample() error {
 	return nil
 }
 
-// Run serves until ctx is cancelled, then drains open connections for up to shutdownTimeout.
 func (s *Server) Run(ctx context.Context) error {
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	srv := &http.Server{

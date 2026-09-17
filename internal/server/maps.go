@@ -46,8 +46,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	return true
 }
 
-// A page on another origin can post a simple request here without a preflight,
-// so the four mutating routes refuse a request that names an origin not our own.
+// A cross-origin simple POST arrives with no preflight, so the mutating routes refuse a foreign Origin themselves.
 func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {

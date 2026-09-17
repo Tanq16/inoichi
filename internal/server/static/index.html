@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#11111b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Inoichi">
     <title>Inoichi</title>
 
     <link rel="manifest" href="/manifest.webmanifest">
@@ -14,9 +17,11 @@
     <link rel="stylesheet" href="/static/css/inter.css">
     <link rel="stylesheet" href="/static/css/google-sans.css">
     <link rel="stylesheet" href="/static/css/jetbrains-mono.css">
+    <link rel="stylesheet" href="/static/css/github-dark.min.css">
 
     <script src="/static/js/lucide.min.js"></script>
-    <script src="/static/js/marked.js"></script>
+    <script src="/static/js/marked.umd.js"></script>
+    <script src="/static/js/highlight.min.js"></script>
     <script src="/static/js/purify.min.js"></script>
     <script src="/static/js/tailwind.js"></script>
     <style>
@@ -39,15 +44,12 @@
       ::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface2); }
 
       .node { --accent: var(--ctp-overlay0); }
-      .node.selected { box-shadow: 0 0 0 2px var(--ctp-crust), 0 0 0 4px var(--accent); }
-      .node.drop-target { box-shadow: 0 0 0 2px var(--ctp-crust), 0 0 0 4px var(--ctp-green); }
+      .node.selected { box-shadow: 0 0 0 2px var(--ctp-mantle), 0 0 0 4px var(--accent); }
+      .node.drop-target { box-shadow: 0 0 0 2px var(--ctp-mantle), 0 0 0 4px var(--ctp-green); }
       .node-text[contenteditable="true"] { outline: none; cursor: text; }
       .node-text:empty::before { content: attr(data-placeholder); color: var(--ctp-overlay1); }
       .node-toggle, .node-note { color: var(--accent); }
       .node-handle, .node-port { background: var(--accent); }
-
-      .resizer { cursor: col-resize; }
-      .resizer:hover, .resizer.active { background: var(--ctp-surface1); }
 
       @keyframes inoichi-blip { 0% { opacity: 0; transform: scale(0.6); } 20% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
       .blip { animation: inoichi-blip 1.4s ease-out forwards; }
@@ -57,27 +59,59 @@
       .pulse { animation: inoichi-pulse 1.2s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) { .blip, .spin, .pulse { animation: none; } .blip { opacity: 1; } }
 
-      /* Rendered Markdown */
-      .md { color: var(--ctp-subtext1); font-size: 0.9375rem; line-height: 1.65; }
-      .md > :first-child { margin-top: 0; }
-      .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { color: var(--ctp-text); font-family: 'Google Sans', sans-serif; font-weight: 600; margin: 1.4em 0 0.5em; line-height: 1.25; }
-      .md h1 { font-size: 1.5rem; } .md h2 { font-size: 1.25rem; } .md h3 { font-size: 1.1rem; } .md h4, .md h5, .md h6 { font-size: 1rem; }
-      .md p, .md ul, .md ol, .md pre, .md blockquote, .md table { margin: 0 0 0.9em; }
-      .md ul, .md ol { padding-left: 1.4em; } .md ul { list-style: disc; } .md ol { list-style: decimal; } .md li + li { margin-top: 0.2em; }
-      .md li > ul, .md li > ol { margin: 0.2em 0 0; }
-      .md a { color: var(--ctp-blue); text-decoration: underline; text-underline-offset: 2px; }
-      .md strong { color: var(--ctp-text); font-weight: 600; } .md em { font-style: italic; }
-      .md code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--ctp-surface0); color: var(--ctp-peach); border-radius: 0.3rem; padding: 0.1em 0.35em; }
-      .md pre { background: var(--ctp-crust); border-radius: 0.6rem; padding: 0.85rem 1rem; overflow-x: auto; }
-      .md pre code { background: transparent; color: var(--ctp-text); padding: 0; font-size: 0.8125rem; }
-      .md blockquote { border-left: 3px solid var(--ctp-surface2); padding-left: 1em; color: var(--ctp-subtext0); }
-      .md hr { border: 0; height: 1px; background: var(--ctp-surface0); margin: 1.4em 0; }
-      .md table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
-      .md th, .md td { padding: 0.4em 0.7em; text-align: left; }
-      .md th { color: var(--ctp-text); background: var(--ctp-surface0); font-weight: 600; }
-      .md tr:nth-child(even) td { background: var(--ctp-base); }
-      .md img { max-width: 100%; border-radius: 0.5rem; }
-      .md input[type="checkbox"] { margin-right: 0.4em; accent-color: var(--ctp-mauve); }
+      .markdown-body { color: var(--ctp-subtext0); font-family: 'Inter', sans-serif; font-size: 0.9375rem; line-height: 1.6; }
+      .markdown-body > :first-child { margin-top: 0; }
+      .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: 24px 0 16px; font-family: 'Google Sans', sans-serif; font-weight: 600; line-height: 1.25; padding-bottom: 0.3em; }
+      .markdown-body h1 { font-size: 1.75em; color: var(--ctp-lavender); border-bottom: 1px solid var(--ctp-surface0); }
+      .markdown-body h2 { font-size: 1.4em; color: var(--ctp-mauve); border-bottom: 1px solid color-mix(in oklab, var(--ctp-surface0) 50%, transparent); }
+      .markdown-body h3 { font-size: 1.2em; color: var(--ctp-blue); }
+      .markdown-body h4, .markdown-body h5, .markdown-body h6 { margin: 20px 0 12px; font-weight: 600; line-height: 1.25; }
+      .markdown-body h4 { font-size: 1em; color: var(--ctp-text); }
+      .markdown-body h5 { font-size: 0.875em; color: var(--ctp-text); }
+      .markdown-body h6 { font-size: 0.85em; color: var(--ctp-subtext0); }
+      .markdown-body p { margin-bottom: 16px; }
+      .markdown-body a { color: var(--ctp-blue); text-decoration: none; }
+      .markdown-body a:hover { text-decoration: underline; }
+      .markdown-body strong { color: var(--ctp-text); font-weight: 600; }
+      .markdown-body ul, .markdown-body ol { padding-left: 2em; margin-bottom: 16px; }
+      .markdown-body ul { list-style-type: disc; }
+      .markdown-body ol { list-style-type: decimal; }
+      .markdown-body li { margin-bottom: 0.25em; }
+      .markdown-body li > ul, .markdown-body li > ol { margin-bottom: 0; }
+      .markdown-body code { font-family: 'JetBrains Mono', monospace; color: var(--ctp-peach) !important; background-color: var(--ctp-surface0) !important; border-radius: 4px; padding: 0.2em 0.4em; font-size: 0.9375em; }
+      .markdown-body pre { position: relative; background-color: var(--ctp-base) !important; border-radius: 0.75rem; padding: 1rem !important; margin-bottom: 16px; overflow: auto; }
+      .markdown-body pre code { color: inherit !important; background-color: transparent !important; padding: 0; font-size: 0.9375em; }
+      .markdown-body table { display: table !important; width: 100% !important; border-collapse: separate; border-spacing: 0; border: 1px solid color-mix(in oklab, var(--ctp-surface1) 50%, transparent); border-radius: 8px; overflow: hidden; margin-bottom: 1.5rem; }
+      .markdown-body table thead { background-color: color-mix(in oklab, var(--ctp-mauve) 10%, transparent); }
+      .markdown-body table tr { background-color: transparent !important; border: none !important; }
+      .markdown-body table tr:nth-child(2n) { background-color: color-mix(in oklab, var(--ctp-surface0) 30%, transparent) !important; }
+      .markdown-body table th { color: var(--ctp-mauve) !important; font-weight: 600; border: none !important; border-bottom: 1px solid color-mix(in oklab, var(--ctp-surface1) 50%, transparent) !important; border-right: 1px solid color-mix(in oklab, var(--ctp-surface0) 50%, transparent); padding: 12px 16px !important; text-align: left; }
+      .markdown-body table td { border: none !important; border-bottom: 1px solid color-mix(in oklab, var(--ctp-surface0) 30%, transparent) !important; border-right: 1px solid color-mix(in oklab, var(--ctp-surface0) 30%, transparent); color: var(--ctp-subtext0) !important; padding: 12px 16px !important; text-align: left; }
+      .markdown-body table th:last-child, .markdown-body table td:last-child { border-right: none; }
+      .markdown-body table tr:last-child td { border-bottom: none !important; }
+      .markdown-body blockquote { border-left: 0.25em solid color-mix(in oklab, var(--ctp-surface1) 50%, transparent); padding: 0 1em; color: var(--ctp-subtext0); margin-bottom: 16px; }
+      .markdown-body hr { border: none; border-top: 1px solid var(--ctp-surface0); margin: 1.5em 0; }
+      .markdown-body img { max-width: 100%; border-radius: 0.5rem; }
+      .markdown-body input[type="checkbox"] { margin-right: 0.4em; accent-color: var(--ctp-mauve); }
+      .copy-code-btn { position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.5rem; background-color: color-mix(in oklab, var(--ctp-surface0) 95%, transparent); border-radius: 0.375rem; color: var(--ctp-subtext0); cursor: pointer; opacity: 0; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; z-index: 10; }
+      pre:hover .copy-code-btn { opacity: 1; }
+      .copy-code-btn:hover { background-color: var(--ctp-surface1); color: var(--ctp-mauve); }
+      .copy-code-btn.copied { color: var(--ctp-green); }
+      .callout { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: flex-start; background-color: color-mix(in oklab, var(--ctp-surface0) 20%, transparent); }
+      .callout-icon { display: inline-flex; align-items: center; flex-shrink: 0; line-height: 1; padding-top: 0.3em; }
+      .callout-icon svg { width: 1em; height: 1em; }
+      .callout-content { flex: 1; }
+      .callout-content p { margin: 0 !important; }
+      .callout.tip { background-color: color-mix(in oklab, var(--ctp-green) 10%, transparent); }
+      .callout.tip .callout-icon { color: var(--ctp-green); }
+      .callout.info { background-color: color-mix(in oklab, var(--ctp-blue) 10%, transparent); }
+      .callout.info .callout-icon { color: var(--ctp-blue); }
+      .callout.danger { background-color: color-mix(in oklab, var(--ctp-red) 10%, transparent); }
+      .callout.danger .callout-icon { color: var(--ctp-red); }
+      .callout.warning { background-color: color-mix(in oklab, var(--ctp-peach) 10%, transparent); }
+      .callout.warning .callout-icon { color: var(--ctp-peach); }
+      .callout.note { background-color: color-mix(in oklab, var(--ctp-mauve) 10%, transparent); }
+      .callout.note .callout-icon { color: var(--ctp-mauve); }
     </style>
     <style type="text/tailwindcss">
       @theme {
@@ -127,7 +161,7 @@
 
 <div class="flex h-full">
 
-  <aside id="sidebar" class="shrink-0 bg-mantle flex flex-col" aria-label="Maps">
+  <aside id="sidebar" class="shrink-0 bg-crust flex flex-col" aria-label="Maps">
     <div class="h-12 px-3 flex items-center gap-2 shrink-0">
       <img src="/static/icons/logo.png" alt="" class="w-6 h-6" width="24" height="24">
       <span class="text-base font-semibold font-display text-text">Inoichi</span>
@@ -171,9 +205,9 @@
       </button>
     </div>
   </aside>
-  <div id="sidebar-resizer" class="resizer w-1 shrink-0 bg-mantle" role="separator" aria-orientation="vertical" aria-label="Resize the map list"></div>
+  <div id="sidebar-resizer" class="resizer w-1 shrink-0 bg-crust cursor-col-resize hover:bg-surface1" role="separator" aria-orientation="vertical" aria-label="Resize the map list"></div>
 
-  <div class="flex-1 flex flex-col min-w-0 bg-mantle">
+  <div class="flex-1 flex flex-col min-w-0 bg-crust">
 
     <header class="h-12 px-3 flex items-center gap-1 shrink-0">
       <button id="sidebar-open" class="icon-btn hidden" aria-label="Show the map list" title="Show the map list ([)">
@@ -211,13 +245,13 @@
       </div>
     </header>
 
-    <main id="canvas" class="relative flex-1 overflow-hidden bg-crust rounded-t-xl" tabindex="-1">
+    <main id="canvas" class="relative flex-1 overflow-hidden bg-mantle rounded-t-xl" tabindex="-1">
 
-      <div id="canvas-loading" class="hidden absolute inset-0 z-10 grid place-items-center bg-crust" role="status">
+      <div id="canvas-loading" class="hidden absolute inset-0 z-10 grid place-items-center bg-mantle" role="status">
         <div class="flex items-center gap-2 text-overlay1 text-sm pulse"><i data-lucide="loader" class="w-4 h-4"></i> Opening map</div>
       </div>
 
-      <div id="canvas-empty" class="absolute inset-0 z-10 grid place-items-center bg-crust px-6">
+      <div id="canvas-empty" class="absolute inset-0 z-10 grid place-items-center bg-mantle px-6">
         <div class="text-center max-w-sm">
           <i data-lucide="git-fork" class="w-10 h-10 mx-auto text-overlay0"></i>
           <h1 class="mt-4 text-xl font-display font-semibold text-text">Nothing open</h1>
@@ -228,7 +262,7 @@
         </div>
       </div>
 
-      <div id="canvas-error" class="hidden absolute inset-0 z-10 grid place-items-center bg-crust px-6">
+      <div id="canvas-error" class="hidden absolute inset-0 z-10 grid place-items-center bg-mantle px-6">
         <div class="text-center max-w-sm">
           <i data-lucide="triangle-alert" class="w-10 h-10 mx-auto text-red"></i>
           <h1 class="mt-4 text-xl font-display font-semibold text-text">Could not open that map</h1>
@@ -244,8 +278,8 @@
     </main>
   </div>
 
-  <div id="inspector-resizer" class="resizer w-1 shrink-0 bg-mantle hidden" role="separator" aria-orientation="vertical" aria-label="Resize the node panel"></div>
-  <aside id="inspector" class="hidden shrink-0 bg-mantle flex-col" aria-label="Selected node">
+  <div id="inspector-resizer" class="resizer w-1 shrink-0 bg-crust cursor-col-resize hover:bg-surface1 hidden" role="separator" aria-orientation="vertical" aria-label="Resize the node panel"></div>
+  <aside id="inspector" class="hidden shrink-0 bg-crust flex-col" aria-label="Selected node">
     <div class="h-12 px-3 flex items-center shrink-0">
       <h2 class="text-sm font-display font-semibold text-text px-1">Node</h2>
       <button id="inspector-close" class="icon-btn ml-auto" aria-label="Hide the node panel" title="Hide the node panel (])">
@@ -322,7 +356,7 @@
       <i data-lucide="x" class="w-4 h-4"></i>
     </button>
   </div>
-  <div id="md-body" class="md px-6 pb-6 max-h-[75vh] overflow-y-auto select-text"></div>
+  <div id="md-body" class="markdown-body px-6 pb-6 max-h-[75vh] overflow-y-auto select-text"></div>
 </dialog>
 
 <script src="/static/app.js"></script>

@@ -1,10 +1,9 @@
-.PHONY: help install assets verify-assets font clean build build-for build-all dev run test smoke docker-build docker-push version
+.PHONY: help install assets verify-assets font clean build build-for build-all dev run test smoke version
 
 # =============================================================================
 # Variables
 # =============================================================================
 APP_NAME    := inoichi
-DOCKER_USER := tanq16
 MODULE      := github.com/tanq16/inoichi
 
 VERSION ?= dev-build
@@ -19,6 +18,7 @@ DATA_DIR ?= ./data
 TAILWIND_VERSION := 4.3.3
 LUCIDE_VERSION   := 1.34.0
 MARKED_VERSION   := 18.0.13
+HIGHLIGHTJS_VERSION := 11.12.0
 DOMPURIFY_VERSION := 3.4.15
 
 STATIC_DIR := internal/server/static
@@ -59,7 +59,9 @@ $(STAMP): $(MAKEFILE_LIST)
 	@mkdir -p $(JS_DIR) $(CSS_DIR) $(FONTS_DIR)
 	@curl -sfL "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@$(TAILWIND_VERSION)" -o "$(JS_DIR)/tailwind.js"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/lucide@$(LUCIDE_VERSION)/dist/umd/lucide.min.js" -o "$(JS_DIR)/lucide.min.js"
-	@curl -sfL "https://cdn.jsdelivr.net/npm/marked@$(MARKED_VERSION)/lib/marked.umd.js" -o "$(JS_DIR)/marked.js"
+	@curl -sfL "https://cdn.jsdelivr.net/npm/marked@$(MARKED_VERSION)/lib/marked.umd.js" -o "$(JS_DIR)/marked.umd.js"
+	@curl -sfL "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@$(HIGHLIGHTJS_VERSION)/highlight.min.js" -o "$(JS_DIR)/highlight.min.js"
+	@curl -sfL "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@$(HIGHLIGHTJS_VERSION)/styles/github-dark.min.css" -o "$(CSS_DIR)/github-dark.min.css"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/dompurify@$(DOMPURIFY_VERSION)/dist/purify.min.js" -o "$(JS_DIR)/purify.min.js"
 	@$(MAKE) --no-print-directory font FAMILY="Inter" SLUG=inter WEIGHTS="400;500;600;700"
 	@$(MAKE) --no-print-directory font FAMILY="Google+Sans" SLUG=google-sans WEIGHTS="400;500;700"
@@ -84,7 +86,9 @@ font:
 verify-assets: ## Fail early if the embedded tree is missing an asset
 	@test -s $(JS_DIR)/tailwind.js || (echo "tailwind.js missing, run 'make assets'" && exit 1)
 	@test -s $(JS_DIR)/lucide.min.js || (echo "lucide.min.js missing, run 'make assets'" && exit 1)
-	@test -s $(JS_DIR)/marked.js || (echo "marked.js missing, run 'make assets'" && exit 1)
+	@test -s $(JS_DIR)/marked.umd.js || (echo "marked.umd.js missing, run 'make assets'" && exit 1)
+	@test -s $(JS_DIR)/highlight.min.js || (echo "highlight.min.js missing, run 'make assets'" && exit 1)
+	@test -s $(CSS_DIR)/github-dark.min.css || (echo "github-dark.min.css missing, run 'make assets'" && exit 1)
 	@test -s $(JS_DIR)/purify.min.js || (echo "purify.min.js missing, run 'make assets'" && exit 1)
 	@test -s $(CSS_DIR)/inter.css || (echo "inter.css missing, run 'make assets'" && exit 1)
 	@test -s $(CSS_DIR)/google-sans.css || (echo "google-sans.css missing, run 'make assets'" && exit 1)
@@ -118,32 +122,16 @@ build-all: assets verify-assets ## Build every platform binary
 # Run and test
 # =============================================================================
 dev: assets ## Run from source with debug logging and a throwaway data directory
-	@go run . serve --debug --host $(HOST) --port $(PORT) --data-dir ./.devdata
+	@go run . --debug --host $(HOST) --port $(PORT) --data-dir ./.devdata
 
 run: build ## Build the binary and serve it the way a release would
-	@./$(APP_NAME) serve --host $(HOST) --port $(PORT) --data-dir $(DATA_DIR)
+	@./$(APP_NAME) --host $(HOST) --port $(PORT) --data-dir $(DATA_DIR)
 
 test: ## Run the unit tests
 	@go test ./...
 
 smoke: build ## Drive the real UI in a headless browser end to end
 	@go test -tags=e2e -count=1 -timeout 180s ./test/...
-
-# =============================================================================
-# Docker
-# =============================================================================
-docker-build: ## Build the container image for this machine
-	@docker build --build-arg VERSION=$(VERSION) -t $(DOCKER_USER)/$(APP_NAME):$(VERSION) .
-	@docker tag $(DOCKER_USER)/$(APP_NAME):$(VERSION) $(DOCKER_USER)/$(APP_NAME):latest
-
-# buildx cannot load a multi-platform result into the local daemon, so the
-# manifest is built and pushed in one step rather than built then pushed.
-docker-push: ## Build linux/amd64 and linux/arm64 and push one manifest
-	@docker buildx build --platform linux/amd64,linux/arm64 \
-	  --build-arg VERSION=$(VERSION) \
-	  -t $(DOCKER_USER)/$(APP_NAME):$(VERSION) \
-	  -t $(DOCKER_USER)/$(APP_NAME):latest \
-	  --push .
 
 # =============================================================================
 # Version

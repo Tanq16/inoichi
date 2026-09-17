@@ -84,7 +84,6 @@
   const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   const rgbToHex = (rgb) => `#${rgb.map((c) => Math.round(clampNum(c, 0, 255)).toString(16).padStart(2, '0')).join('')}`;
 
-  // Mixes an accent over the canvas ground so a node reads as its colour without a border.
   function tint(accentHex, ratio, overHex = PALETTE.base) {
     const a = hexToRgb(accentHex);
     const b = hexToRgb(overHex);
@@ -366,7 +365,6 @@
     if (state === 'error') announce(`Save failed. ${detail}`);
   }
 
-  // Waits for a pause in editing, but never longer than maxWaitMs from the first unsaved change.
   function scheduleSave() {
     if (!S.map) return;
     const now = Date.now();
@@ -680,7 +678,7 @@
       toggle.type = 'button';
       toggle.dataset.role = 'toggle';
       toggle.tabIndex = -1;
-      toggle.className = 'node-toggle absolute top-1/2 -translate-y-1/2 -right-2.5 w-5 h-5 rounded-full bg-mantle text-[10px] font-semibold leading-none grid place-items-center focus:outline-none';
+      toggle.className = 'node-toggle absolute top-1/2 -translate-y-1/2 -right-2.5 w-5 h-5 rounded-full bg-surface0 text-[10px] font-semibold leading-none grid place-items-center focus:outline-none';
       toggle.textContent = node.collapsed ? String(descendants(node.id).length) : '−';
       toggle.setAttribute('aria-label', node.collapsed ? `Expand ${node.text}` : `Collapse ${node.text}`);
       box.append(toggle);
@@ -1062,9 +1060,80 @@
     text.addEventListener('paste', onPaste);
   }
 
+  const slugOf = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+  function initMarked() {
+    const renderer = {
+      code(token) {
+        const lang = hljs.getLanguage(token.lang) ? token.lang : 'plaintext';
+        let highlighted = token.text;
+        try {
+          highlighted = hljs.highlight(token.text, { language: lang }).value;
+        } catch {
+          highlighted = token.text;
+        }
+        return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+      },
+      heading(token) {
+        const text = this.parser.parseInline(token.tokens);
+        return `<h${token.depth} id="${slugOf(text.replace(/<[^>]*>/g, ''))}">${text}</h${token.depth}>`;
+      },
+      image(token) {
+        return `<img src="${token.href}" alt="${token.text || ''}" style="max-width:100%; border-radius:0.5rem;">`;
+      },
+      blockquote(token) {
+        const body = this.parser.parse(token.tokens);
+        const match = token.text.match(/^\[!(TIP|NOTE|INFO|WARNING|DANGER)\]/i);
+        if (!match) return `<blockquote>${body}</blockquote>`;
+        const type = match[1].toLowerCase();
+        const iconMap = { tip: 'lightbulb', info: 'info', danger: 'triangle-alert', warning: 'triangle-alert', note: 'sticky-note' };
+        const cleanBody = body.replace(/<p>\s*\[!(TIP|NOTE|INFO|WARNING|DANGER)\]\s*/i, '<p>');
+        return `<div class="callout ${type}"><div class="callout-icon"><i data-lucide="${iconMap[type]}"></i></div><div class="callout-content">${cleanBody}</div></div>`;
+      },
+    };
+    marked.use({ gfm: true, breaks: false, renderer });
+  }
+
   function renderMarkdown(source) {
-    const html = marked.parse(source || '', { gfm: true, breaks: false });
-    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, ADD_ATTR: ['target'] });
+    return DOMPurify.sanitize(marked.parse(source || ''), { USE_PROFILES: { html: true }, ADD_ATTR: ['target'] });
+  }
+
+  function addCopyButtons(root) {
+    for (const block of root.querySelectorAll('pre')) {
+      if (block.querySelector('.copy-code-btn')) continue;
+      const codeEl = block.querySelector('code');
+      if (!codeEl) continue;
+      const button = document.createElement('button');
+      button.className = 'copy-code-btn';
+      button.type = 'button';
+      button.setAttribute('aria-label', 'Copy this code');
+      button.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(codeEl.textContent);
+        } catch {
+          const textarea = document.createElement('textarea');
+          textarea.value = codeEl.textContent;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        }
+        button.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+        button.classList.add('copied');
+        icons(button);
+        setTimeout(() => {
+          button.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+          button.classList.remove('copied');
+          icons(button);
+        }, 2000);
+      });
+      block.appendChild(button);
+    }
   }
 
   function openMarkdown(nodeId) {
@@ -1078,6 +1147,8 @@
     el.mdTitle.textContent = node.text || 'Empty node';
     el.mdBody.innerHTML = renderMarkdown(node.note);
     for (const a of el.mdBody.querySelectorAll('a[href]')) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    addCopyButtons(el.mdBody);
+    icons(el.mdBody);
     el.md.dataset.node = nodeId;
     if (!el.md.open) el.md.showModal();
     el.mdBody.scrollTop = 0;
@@ -1280,7 +1351,7 @@
       ev.preventDefault();
       const startX = ev.clientX;
       const startW = S.ui[key];
-      handle.classList.add('active');
+      handle.classList.add('bg-surface1');
       handle.setPointerCapture(ev.pointerId);
       const move = (e) => {
         const delta = fromRight ? startX - e.clientX : e.clientX - startX;
@@ -1288,7 +1359,7 @@
         applyPanels();
       };
       const up = () => {
-        handle.classList.remove('active');
+        handle.classList.remove('bg-surface1');
         handle.removeEventListener('pointermove', move);
         handle.removeEventListener('pointerup', up);
         handle.removeEventListener('pointercancel', up);
@@ -1422,7 +1493,7 @@
     const parts = [];
 
     parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
-    parts.push(`<rect width="${w}" height="${h}" fill="${PALETTE.crust}"/>`);
+    parts.push(`<rect width="${w}" height="${h}" fill="${PALETTE.mantle}"/>`);
     parts.push(`<g transform="translate(${ox} ${oy})">`);
 
     for (const n of S.map.nodes) {
@@ -1463,7 +1534,7 @@
         if (hidden) {
           const cx = n.x + n.width;
           const cy = n.y + boxH / 2;
-          parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${PALETTE.mantle}"/>`);
+          parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${PALETTE.surface0}"/>`);
           parts.push(`<text x="${cx}" y="${cy + 3.5}" fill="${accent}" text-anchor="middle" font-family="${TYPE.family}" font-size="10" font-weight="600">${hidden}</text>`);
         }
       }
@@ -1496,7 +1567,7 @@
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = PALETTE.crust;
+      ctx.fillStyle = PALETTE.mantle;
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
@@ -1598,7 +1669,6 @@
     }
   });
 
-  // Panel fields update the node live and push one undo step when the field commits.
   let fieldBefore = null;
   const captureBefore = () => { fieldBefore = S.map ? clone(S.map) : null; };
   const commitField = () => {
@@ -1713,6 +1783,7 @@
   }
 
   async function boot() {
+    initMarked();
     buildHelp();
     buildAccentPicker();
     applyPanels();

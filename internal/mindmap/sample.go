@@ -25,7 +25,7 @@ Any node can carry a Markdown document like this one. Select the node and type i
 - Code, inline like ` + "`make build`" + ` or fenced:
 
 ` + "```" + `bash
-inoichi serve --port 8080
+inoichi --port 8080
 ` + "```" + `
 
 | Key | Does |

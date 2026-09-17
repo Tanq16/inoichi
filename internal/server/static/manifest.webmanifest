@@ -1,6 +1,7 @@
 {
   "name": "Inoichi",
   "short_name": "Inoichi",
+  "description": "A local-first mind mapping editor",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#11111b",

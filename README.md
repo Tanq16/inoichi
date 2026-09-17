@@ -2,6 +2,7 @@
   <img src=".github/assets/logo.png" alt="Inoichi Logo" width="200">
   <h1>Inoichi</h1>
 
+  <a href="https://github.com/tanq16/inoichi/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/tanq16/inoichi/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/tanq16/inoichi/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/inoichi"></a><br><br>
   <a href="#features">Features</a> &bull; <a href="#install">Install</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#security">Security</a> &bull; <a href="#notes">Notes</a>
 </div>
 
@@ -16,11 +17,11 @@ It covers the part of a mind mapping tool most people use: draw a tree, move it 
 | Area | What you get |
 |---|---|
 | Editing | Drag, resize, reparent, cross-link, collapse, accent colours |
-| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal |
+| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal with highlighted code, callouts and copy buttons |
 | Keyboard | Tab, Enter, Space, Delete, arrow-key navigation, undo and redo, zoom, tidy layout |
 | Persistence | Maps live in memory on the server and reach disk a couple of seconds after the last change |
 | Getting out | Export JSON, SVG or PNG, and import any JSON this app exported |
-| Deployment | One static binary with the frontend embedded, or a container image, installable as a desktop web app |
+| Deployment | One static binary with the frontend embedded, installable as a desktop web app |
 
 Everything is single-user by design. There are no accounts, no sharing, no telemetry, and no outbound network requests at run time. The editor is built for a desktop window and refuses portrait or phone-sized screens.
 
@@ -35,6 +36,10 @@ Everything is single-user by design. There are no accounts, no sharing, no telem
 
 ## Install
 
+### Release binary
+
+Every release on the [releases page](https://github.com/tanq16/inoichi/releases) carries a static binary for `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64`. Download the one for your platform, mark it executable, and run `inoichi`. The editor is then at `http://localhost:8080`.
+
 ### From source
 
 Needs Go 1.27 and `curl`. `make build` downloads the pinned frontend assets, which are never committed, then compiles them into the binary.
@@ -43,40 +48,15 @@ Needs Go 1.27 and `curl`. `make build` downloads the pinned frontend assets, whi
 git clone https://github.com/tanq16/inoichi.git
 cd inoichi
 make build
-./inoichi serve
-```
-
-`make build-all` produces `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64` binaries instead. Every push to `main` builds those four binaries into a GitHub release and pushes a multi-arch image to Docker Hub.
-
-### Docker
-
-```bash
-docker run -d --name inoichi \
-  -p 8080:8080 \
-  -v ./data:/app/data \
-  tanq16/inoichi:latest
-```
-
-Available at `http://localhost:8080`. The container runs as UID and GID 10001, so the mounted directory has to be writable by that user. The same setup as a compose file:
-
-```yaml
-services:
-  inoichi:
-    image: tanq16/inoichi:latest
-    container_name: inoichi
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./data:/app/data # change as needed
+./inoichi
 ```
 
 ## Usage
 
-`inoichi serve` is the only command. Every flag reads an environment variable of the same name as its default, so `.env.example` and the flags describe one set of settings rather than two.
+The binary takes no subcommands: running it serves the editor. Every flag reads an environment variable of the same name as its default, so `.env.example` and the flags describe one set of settings rather than two.
 
 ```bash
-inoichi serve --host 127.0.0.1 -p 8080 -d ./data
+inoichi --host 127.0.0.1 -p 8080 -d ./data
 ```
 
 | Flag | Environment | Default | Description |
@@ -91,7 +71,7 @@ Inoichi holds no secrets and needs no credentials, so `.env.example` carries onl
 
 ### Where your data lives
 
-One JSON file per map at `<data-dir>/maps/<id>.json`, written at mode `0600` inside a directory at `0700`. The data directory defaults to `data` inside the directory you start the binary from, so a plain `inoichi serve` keeps its maps next to it.
+One JSON file per map at `<data-dir>/maps/<id>.json`, written at mode `0600` inside a directory at `0700`. The data directory defaults to `data` inside the directory you start the binary from, so a plain `inoichi` keeps its maps next to it.
 
 The server keeps every map in memory and writes a changed map to disk two seconds after its last save, so a burst of edits costs one write. Stopping the server with Ctrl-C or SIGTERM writes everything that is still pending before it exits.
 
@@ -156,7 +136,7 @@ Imported JSON is validated before it is stored: ids are checked against a strict
 ## Notes
 
 - **No Xmind interoperability.** Inoichi does not read or write `.xmind`, `.mm`, or OPML. Its JSON is the only format that round-trips.
-- **Desktop only.** A portrait or phone-sized window gets a notice instead of the editor. The app still installs as a progressive web app on a desktop browser, and the service worker keeps the shell available when the server is down.
+- **Desktop only.** A portrait or phone-sized window gets a notice instead of the editor. The app still installs as a progressive web app on a desktop browser, and its service worker caches nothing, so a refresh always shows the running binary's version.
 - **Exported SVG and PNG use the reader's fonts.** No font is embedded, so an exported file falls back to the viewer's sans-serif if Inter is not installed. Markdown is not part of the image exports; a node with Markdown carries a page icon in them.
 - **One tree per map.** A node has exactly one parent, and cross links are decoration rather than a second hierarchy.
 - **One tab at a time.** There is no merge. A save from a tab whose copy has fallen behind is refused with a conflict rather than applied.

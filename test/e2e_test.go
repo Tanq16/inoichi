@@ -29,10 +29,10 @@ const (
 )
 
 var chromeCandidates = []string{
-	"/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+	"/usr/bin/google-chrome",
+	"/usr/bin/google-chrome-stable",
 	"/usr/bin/chromium",
 	"/usr/bin/chromium-browser",
-	"/usr/bin/google-chrome",
 	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 }
 
@@ -46,7 +46,9 @@ func TestCoreLoop(t *testing.T) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(chrome),
 		chromedp.NoSandbox,
+		chromedp.DisableGPU,
 		chromedp.WindowSize(1440, 900),
+		chromedp.WSURLReadTimeout(90*time.Second),
 	)
 	alloc, cancelAlloc := chromedp.NewExecAllocator(t.Context(), opts...)
 	defer cancelAlloc()
@@ -104,9 +106,7 @@ func TestCoreLoop(t *testing.T) {
 
 	waitForDisk(t, dataDir, childText)
 
-	// Adding and naming the child are two undo steps. Undoing both restores a
-	// snapshot taken before the save above, and the save that follows must still
-	// be accepted, so the version token cannot live inside the snapshot.
+	// Undoing past the save above must still save, so the version token cannot live inside the undo snapshot.
 	if err := chromedp.Run(ctx,
 		chromedp.KeyEvent("z", chromedp.KeyModifiers(input.ModifierCtrl)),
 		chromedp.KeyEvent("z", chromedp.KeyModifiers(input.ModifierCtrl)),
@@ -255,7 +255,7 @@ func startServer(t *testing.T, binary, dataDir string) string {
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
 
-	cmd := exec.Command(binary, "serve", "--host", "127.0.0.1", "--port", fmt.Sprint(port), "--data-dir", dataDir)
+	cmd := exec.Command(binary, "--host", "127.0.0.1", "--port", fmt.Sprint(port), "--data-dir", dataDir)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -269,15 +269,28 @@ func startServer(t *testing.T, binary, dataDir string) string {
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(base + "/api/health")
-		if err == nil {
-			resp.Body.Close()
+		if healthy(base) {
 			return base
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf("the server never answered on %s", base)
 	return ""
+}
+
+func healthy(base string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/health", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 func waitForDownload(t *testing.T, dir, suffix string) string {
