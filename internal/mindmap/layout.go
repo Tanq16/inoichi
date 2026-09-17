@@ -74,9 +74,6 @@ func Layout(m *Map) {
 		n := byID[id]
 		n.X = clampCoord(left)
 		n.Y = clampCoord(top + (span(id)-n.Height)/2)
-		if n.Collapsed {
-			return
-		}
 		childTop := top
 		childLeft := left + n.Width + layoutGapX
 		for _, k := range children[id] {

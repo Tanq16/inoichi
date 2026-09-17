@@ -10,7 +10,7 @@
     <title>Inoichi</title>
 
     <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="icon" type="image/svg+xml" href="/static/icons/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
     <link rel="icon" type="image/x-icon" href="/static/icons/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
@@ -24,6 +24,7 @@
     <script src="/static/js/marked.umd.js"></script>
     <script src="/static/js/highlight.min.js"></script>
     <script src="/static/js/purify.min.js"></script>
+    <script src="/static/js/mermaid.min.js"></script>
     <script src="/static/js/tailwind.js"></script>
     <style>
       /* Catppuccin Mocha */
@@ -44,9 +45,9 @@
       ::-webkit-scrollbar-thumb { background: var(--ctp-surface1); border-radius: 9999px; }
       ::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface2); }
       textarea::-webkit-resizer {
-        background: linear-gradient(135deg, transparent 0 50%, var(--ctp-overlay0) 50% 60%, transparent 60% 70%, var(--ctp-overlay0) 70% 80%, transparent 80%);
+        background: linear-gradient(135deg, transparent 0 58%, var(--ctp-overlay0) 58% 66%, transparent 66% 74%, var(--ctp-overlay0) 74% 82%, transparent 82%);
         background-clip: content-box;
-        padding: 0 3px 3px 0;
+        padding: 0 4px 4px 0;
       }
 
       .node { --accent: var(--ctp-overlay0); }
@@ -118,6 +119,18 @@
       .callout.warning .callout-icon { color: var(--ctp-peach); }
       .callout.note { background-color: color-mix(in oklab, var(--ctp-mauve) 10%, transparent); }
       .callout.note .callout-icon { color: var(--ctp-mauve); }
+      .mermaid { background-color: var(--ctp-base); padding: 1rem; border-radius: 0.5rem; margin: 1.5rem 0; text-align: center; overflow-x: auto; }
+      .mermaid .grid .tick line { stroke: var(--ctp-surface0) !important; stroke-width: 0.5px !important; opacity: 0.5 !important; }
+      .mermaid .grid .tick text { fill: var(--ctp-subtext0) !important; }
+      .mermaid .grid path { stroke: var(--ctp-surface0) !important; stroke-width: 0.5px !important; }
+      .mermaid .section { stroke: none !important; }
+      .mermaid .section0, .mermaid .section2 { fill: var(--ctp-mantle) !important; }
+      .mermaid .section1, .mermaid .section3 { fill: var(--ctp-base) !important; }
+      .mermaid .today { stroke: var(--ctp-red) !important; stroke-width: 2px !important; }
+      .mermaid .taskText { fill: var(--ctp-base) !important; font-size: 0.75em !important; }
+      .mermaid .taskTextOutsideRight, .mermaid .taskTextOutsideLeft { fill: var(--ctp-text) !important; }
+      .mermaid .sectionTitle { fill: var(--ctp-mauve) !important; }
+      .mermaid .titleText { fill: var(--ctp-mauve) !important; }
     </style>
     <style type="text/tailwindcss">
       @theme {
@@ -143,7 +156,7 @@
         @apply inline-flex items-center justify-center h-8 w-8 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1 shrink-0;
       }
       @utility field {
-        @apply w-full bg-surface0 rounded-lg px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-mauve/60 placeholder:text-overlay0;
+        @apply w-full bg-surface0 rounded-lg px-3 py-2 text-text text-sm pointer-coarse:text-[16px] focus:outline-none focus:ring-2 focus:ring-mauve/60 placeholder:text-overlay0;
       }
       @utility btn-primary {
         @apply inline-flex items-center justify-center gap-2 bg-mauve text-crust font-medium rounded-lg px-3 py-2 text-sm hover:bg-lavender focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve focus-visible:ring-offset-2 focus-visible:ring-offset-mantle;
@@ -159,7 +172,7 @@
 
 <div id="desktop-only" class="hidden fixed inset-0 z-50 bg-crust grid place-items-center px-8 text-center" role="alertdialog" aria-labelledby="desktop-only-title">
   <div class="max-w-sm">
-    <img src="/static/icons/logo.png" alt="" class="w-14 h-14 mx-auto" width="56" height="56">
+    <img src="/static/icons/logo.svg" alt="" class="w-14 h-14 mx-auto" width="56" height="56">
     <h1 id="desktop-only-title" class="mt-4 text-xl font-display font-semibold text-text">Inoichi needs a desktop window</h1>
     <p class="mt-2 text-sm text-subtext0">The editor is built for a landscape screen with a keyboard and a pointer. Open it on a desktop, or widen this window.</p>
   </div>
@@ -169,7 +182,7 @@
 
   <aside id="sidebar" class="shrink-0 bg-crust flex flex-col" aria-label="Maps">
     <div class="h-12 px-3 flex items-center gap-2 shrink-0">
-      <img src="/static/icons/logo.png" alt="" class="w-6 h-6" width="24" height="24">
+      <img src="/static/icons/logo.svg" alt="" class="w-6 h-6" width="24" height="24">
       <span class="text-base font-semibold font-display text-text">Inoichi</span>
       <button id="sidebar-close" class="icon-btn ml-auto" aria-label="Hide the map list" title="Hide the map list ([)">
         <i data-lucide="panel-left-close" class="w-4 h-4"></i>
@@ -222,7 +235,7 @@
 
       <label for="map-title" class="sr-only">Map title</label>
       <input id="map-title" type="text" maxlength="120" disabled
-             class="min-w-0 flex-1 max-w-sm bg-transparent hover:bg-surface0/60 focus:bg-surface0 rounded-lg px-2.5 py-1.5 text-text font-display font-medium disabled:opacity-40 focus:outline-none"
+             class="min-w-0 flex-1 max-w-sm bg-transparent hover:bg-surface0/60 focus:bg-surface0 rounded-lg px-2.5 py-1.5 text-text pointer-coarse:text-[16px] font-display font-medium disabled:opacity-40 focus:outline-none"
              placeholder="Map title" aria-describedby="title-error">
       <p id="title-error" class="hidden text-xs text-red" role="alert"></p>
 
@@ -241,13 +254,13 @@
         <span class="w-2"></span>
         <div class="relative">
           <button id="btn-export" class="icon-btn" aria-label="Export this map" aria-haspopup="true" aria-expanded="false" title="Export"><i data-lucide="download" class="w-4 h-4"></i></button>
-          <div id="export-menu" class="hidden absolute right-0 mt-1 w-36 bg-surface0 rounded-lg p-1 z-20 shadow-xl" aria-label="Export format">
-            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface1 hover:text-text focus:outline-none focus-visible:bg-surface1 focus-visible:text-text" data-format="json"><i data-lucide="braces" class="w-3.5 h-3.5"></i> JSON</button>
-            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface1 hover:text-text focus:outline-none focus-visible:bg-surface1 focus-visible:text-text" data-format="svg"><i data-lucide="shapes" class="w-3.5 h-3.5"></i> SVG</button>
-            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface1 hover:text-text focus:outline-none focus-visible:bg-surface1 focus-visible:text-text" data-format="png"><i data-lucide="image" class="w-3.5 h-3.5"></i> PNG</button>
+          <div id="export-menu" class="hidden absolute right-0 mt-1 w-36 bg-mantle rounded-lg p-1 z-20 shadow-xl" aria-label="Export format">
+            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface0 hover:text-text focus:outline-none focus-visible:bg-surface0 focus-visible:text-text" data-format="json"><i data-lucide="braces" class="w-3.5 h-3.5"></i> JSON</button>
+            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface0 hover:text-text focus:outline-none focus-visible:bg-surface0 focus-visible:text-text" data-format="svg"><i data-lucide="shapes" class="w-3.5 h-3.5"></i> SVG</button>
+            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface0 hover:text-text focus:outline-none focus-visible:bg-surface0 focus-visible:text-text" data-format="png"><i data-lucide="image" class="w-3.5 h-3.5"></i> PNG</button>
           </div>
         </div>
-        <button id="toggle-inspector" class="icon-btn" aria-label="Show the node panel" aria-expanded="false" title="Node panel (])"><i data-lucide="panel-right" class="w-4 h-4"></i></button>
+        <button id="toggle-inspector" class="icon-btn" aria-label="Show the node panel" aria-expanded="false" title="Node panel (])"><i data-lucide="panel-right-open" class="w-4 h-4"></i></button>
       </div>
     </header>
 
@@ -308,7 +321,7 @@
             <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
           </button>
         </div>
-        <textarea id="insp-note" rows="12" maxlength="20000" placeholder="# Notes&#10;&#10;Anything longer than a label. Renders as Markdown." class="field font-mono text-xs leading-5 resize-y" spellcheck="false"></textarea>
+        <textarea id="insp-note" rows="12" maxlength="20000" placeholder="# Notes&#10;&#10;Anything longer than a label. Renders as Markdown." class="field font-mono text-xs pointer-coarse:text-[16px] leading-5 resize-y" spellcheck="false"></textarea>
       </div>
       <div class="flex gap-2">
         <button id="insp-add-child" class="btn-quiet flex-1" title="Add child (Tab)"><i data-lucide="git-branch-plus" class="w-4 h-4"></i> Child</button>

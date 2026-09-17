@@ -17,7 +17,7 @@ It covers the part of a mind mapping tool most people use: draw a tree, move it 
 | Area | What you get |
 |---|---|
 | Editing | Drag, resize, reparent, cross-link, collapse, accent colours |
-| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal with highlighted code, callouts and copy buttons |
+| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal with highlighted code, Mermaid diagrams, callouts and copy buttons |
 | Keyboard | Tab, Enter, Space, Delete, arrow-key navigation, undo and redo, zoom, tidy layout |
 | Persistence | Maps live in memory on the server and reach disk a couple of seconds after the last change |
 | Getting out | Export JSON, SVG or PNG, and import any JSON this app exported |
@@ -100,7 +100,7 @@ The first run on an empty data directory writes one sample map titled `Sample ma
 | `[` and `]` | Show or hide the map list and the node panel |
 | `?` | Open the shortcuts panel |
 
-Selecting a node opens the node panel on the right, with its text, accent and Markdown. Clicking empty canvas deselects and closes it again. Both side panels hide with a click on their icon and resize by dragging their inner edge.
+Selecting a node shows the node panel on the right, with its text, accent and Markdown, and clicking empty canvas deselects. Both side panels stay hidden or shown until you toggle them again, and resize by dragging their inner edge.
 
 A node with Markdown shows a small page icon. Clicking it, or pressing `Ctrl/Cmd` + `Enter`, opens the rendered document in a modal. The raw Markdown stays in the node panel, where it is edited.
 
@@ -141,5 +141,5 @@ Imported JSON is validated before it is stored: ids are checked against a strict
 - **One tree per map.** A node has exactly one parent, and cross links are decoration rather than a second hierarchy.
 - **One tab at a time.** There is no merge. A save from a tab whose copy has fallen behind is refused with a conflict rather than applied.
 - **Tailwind compiles in the browser.** That is the documented development mode rather than a build step, which is fine for a personal tool and means the first paint does a little work.
-- **Layout runs on the server.** Tidying a map posts it to `/api/layout`, so there is one layout implementation rather than one per surface.
+- **Layout runs on the server.** Collapsing, expanding, adding, deleting, reparenting or resizing a node posts the map to `/api/layout` and the whole tree is tidied around the change, so there is one layout implementation rather than one per surface. Dragging a node keeps its position until the next such edit.
 - **Architecture** is written up in [docs/architecture.md](docs/architecture.md) for anyone changing the code.

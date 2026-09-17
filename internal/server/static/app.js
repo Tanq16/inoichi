@@ -1,15 +1,16 @@
 (() => {
   'use strict';
 
-  const PALETTE = {
-    rosewater: '#f5e0dc', flamingo: '#f2cdcd', pink: '#f5c2e7', mauve: '#cba6f7',
-    red: '#f38ba8', maroon: '#eba0ac', peach: '#fab387', yellow: '#f9e2af',
-    green: '#a6e3a1', teal: '#94e2d5', sky: '#89dceb', sapphire: '#74c7ec',
-    blue: '#89b4fa', lavender: '#b4befe', text: '#cdd6f4', subtext0: '#a6adc8',
-    overlay1: '#7f849c', overlay0: '#6c7086', surface2: '#585b70',
-    surface1: '#45475a', surface0: '#313244', base: '#1e1e2e',
-    mantle: '#181825', crust: '#11111b',
-  };
+  const CTP_NAMES = [
+    'rosewater', 'flamingo', 'pink', 'mauve', 'red', 'maroon', 'peach', 'yellow',
+    'green', 'teal', 'sky', 'sapphire', 'blue', 'lavender', 'text', 'subtext1',
+    'subtext0', 'overlay2', 'overlay1', 'overlay0', 'surface2', 'surface1',
+    'surface0', 'base', 'mantle', 'crust',
+  ];
+  const PALETTE = (() => {
+    const css = getComputedStyle(document.documentElement);
+    return Object.fromEntries(CTP_NAMES.map((name) => [name, css.getPropertyValue(`--ctp-${name}`).trim()]));
+  })();
   const ACCENTS = ['mauve', 'blue', 'green', 'peach', 'pink', 'teal', 'yellow', 'red', 'sapphire', 'lavender'];
   const LIMITS = { text: 512, note: 20000, title: 120, nodes: 2000 };
   const TYPE = {
@@ -56,7 +57,6 @@
     undo: [], redo: [],
     save: { state: 'idle', timer: null, deadline: 0, inflight: false, pending: false, blipTimer: null },
     ui: loadUI(),
-    inspectorOpen: false,
     mapListKey: '',
     nodeEls: new Map(),
     index: null,
@@ -68,7 +68,7 @@
   const clampNum = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
   function loadUI() {
-    const defaults = { sidebarWidth: PANEL.sidebar.initial, sidebarOpen: true, inspectorWidth: PANEL.inspector.initial };
+    const defaults = { sidebarWidth: PANEL.sidebar.initial, sidebarOpen: true, inspectorWidth: PANEL.inspector.initial, inspectorOpen: true };
     try {
       const stored = JSON.parse(localStorage.getItem('inoichi:ui') || '{}');
       return { ...defaults, ...stored };
@@ -765,8 +765,6 @@
   function select(id, { focus = true } = {}) {
     const changed = id !== S.selected;
     S.selected = id;
-    if (changed && id) S.inspectorOpen = true;
-    if (changed && !id) S.inspectorOpen = false;
     syncSelectionUI();
     const box = S.nodeEls.get(id);
     if (box && focus) box.focus({ preventScroll: true });
@@ -846,18 +844,20 @@
   }
 
   function setInspectorOpen(open) {
-    S.inspectorOpen = open;
+    S.ui.inspectorOpen = open;
+    saveUI();
     renderInspector();
+    if (S.map) applyView();
   }
 
   function renderInspector() {
     const node = S.selected && nodeById(S.selected);
-    const show = !!node && S.inspectorOpen;
+    const show = !!node && S.ui.inspectorOpen;
     el.inspector.classList.toggle('hidden', !show);
     el.inspector.classList.toggle('flex', show);
     el.inspectorResizer.classList.toggle('hidden', !show);
+    el.toggleInspector.classList.toggle('hidden', show);
     el.toggleInspector.setAttribute('aria-expanded', show ? 'true' : 'false');
-    el.toggleInspector.classList.toggle('text-text', show);
     if (!node) return;
     if (document.activeElement !== el.inspText) el.inspText.value = node.text;
     if (document.activeElement !== el.inspNote) el.inspNote.value = node.note || '';
@@ -936,6 +936,7 @@
     select(id);
     if (edit) startEditing(id);
     announce('Child node added');
+    relayout();
   }
 
   function addSibling(nodeId) {
@@ -967,6 +968,7 @@
     renderAll();
     select(S.selected);
     announce(`Removed ${doomed.size} node${doomed.size === 1 ? '' : 's'}`);
+    relayout();
   }
 
   function toggleCollapse(nodeId) {
@@ -976,6 +978,7 @@
     renderAll();
     select(nodeId);
     announce(node.collapsed ? 'Branch collapsed' : 'Branch expanded');
+    relayout();
   }
 
   function addLink(fromId, toId) {
@@ -1062,9 +1065,110 @@
 
   const slugOf = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
+  const escapeHtml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function mermaidConfig() {
+    const c = (name) => PALETTE[name];
+    return {
+      startOnLoad: false,
+      theme: 'base',
+      fontFamily: 'Inter',
+      themeVariables: {
+        darkMode: true,
+        background: c('base'),
+        mainBkg: c('base'),
+        primaryColor: c('surface0'),
+        primaryTextColor: c('text'),
+        primaryBorderColor: c('blue'),
+        secondaryColor: c('surface1'),
+        secondaryTextColor: c('text'),
+        secondaryBorderColor: c('overlay1'),
+        tertiaryColor: c('surface0'),
+        tertiaryTextColor: c('text'),
+        tertiaryBorderColor: c('surface2'),
+        lineColor: c('blue'),
+        arrowheadColor: c('blue'),
+        textColor: c('text'),
+        titleColor: c('mauve'),
+        noteBkgColor: c('surface1'),
+        noteTextColor: c('yellow'),
+        noteBorderColor: c('surface2'),
+        nodeBkg: c('surface0'),
+        nodeBorder: c('blue'),
+        clusterBkg: c('mantle'),
+        clusterBorder: c('surface2'),
+        defaultLinkColor: c('blue'),
+        edgeLabelBackground: c('surface0'),
+        nodeTextColor: c('text'),
+        actorBkg: c('surface0'),
+        actorBorder: c('blue'),
+        actorTextColor: c('text'),
+        actorLineColor: c('surface2'),
+        signalColor: c('pink'),
+        signalTextColor: c('text'),
+        labelBoxBkgColor: c('surface1'),
+        labelBoxBorderColor: c('surface2'),
+        labelTextColor: c('text'),
+        loopTextColor: c('yellow'),
+        activationBorderColor: c('mauve'),
+        activationBkgColor: c('surface1'),
+        sequenceNumberColor: c('base'),
+        sectionBkgColor: c('mantle'),
+        altSectionBkgColor: c('base'),
+        sectionBkgColor2: c('crust'),
+        taskBkgColor: c('blue'),
+        taskBorderColor: c('lavender'),
+        taskTextColor: c('base'),
+        taskTextLightColor: c('base'),
+        taskTextDarkColor: c('text'),
+        taskTextOutsideColor: c('text'),
+        taskTextClickableColor: c('sky'),
+        activeTaskBkgColor: c('mauve'),
+        activeTaskBorderColor: c('pink'),
+        doneTaskBkgColor: c('surface1'),
+        doneTaskBorderColor: c('surface2'),
+        critBkgColor: c('red'),
+        critBorderColor: c('maroon'),
+        gridColor: c('surface0'),
+        todayLineColor: c('red'),
+        pie1: c('mauve'), pie2: c('blue'), pie3: c('green'), pie4: c('yellow'),
+        pie5: c('red'), pie6: c('teal'), pie7: c('peach'), pie8: c('sky'),
+        pie9: c('pink'), pie10: c('sapphire'), pie11: c('maroon'), pie12: c('lavender'),
+        pieTitleTextColor: c('text'),
+        pieSectionTextColor: c('base'),
+        pieLegendTextColor: c('text'),
+        pieStrokeColor: c('base'),
+        pieOuterStrokeColor: c('surface0'),
+        git0: c('blue'), git1: c('mauve'), git2: c('green'), git3: c('yellow'),
+        git4: c('red'), git5: c('teal'), git6: c('peach'), git7: c('sapphire'),
+        gitInv0: c('base'), gitInv1: c('base'), gitInv2: c('base'), gitInv3: c('base'),
+        gitInv4: c('base'), gitInv5: c('base'), gitInv6: c('base'), gitInv7: c('base'),
+        commitLabelColor: c('subtext1'),
+        commitLabelBackground: c('base'),
+        tagLabelColor: c('base'),
+        tagLabelBackground: c('yellow'),
+        tagLabelBorder: c('peach'),
+        labelBackgroundColor: c('surface0'),
+        cScale0: c('surface0'), cScale1: c('blue'), cScale2: c('mauve'), cScale3: c('green'),
+        cScale4: c('yellow'), cScale5: c('red'), cScale6: c('teal'), cScale7: c('peach'),
+        cScale8: c('sky'), cScale9: c('pink'), cScale10: c('sapphire'), cScale11: c('lavender'),
+      },
+    };
+  }
+
+  function renderMermaid(root) {
+    const nodes = root.querySelectorAll('.mermaid');
+    if (!nodes.length) return;
+    mermaid.initialize(mermaidConfig());
+    mermaid.run({ nodes }).catch(() => {});
+  }
+
   function initMarked() {
     const renderer = {
       code(token) {
+        if (token.lang === 'mermaid') {
+          return `<div class="overflow-x-auto my-6"><div class="mermaid">${escapeHtml(token.text)}</div></div>`;
+        }
         const lang = hljs.getLanguage(token.lang) ? token.lang : 'plaintext';
         let highlighted = token.text;
         try {
@@ -1100,7 +1204,7 @@
 
   function addCopyButtons(root) {
     for (const block of root.querySelectorAll('pre')) {
-      if (block.querySelector('.copy-code-btn')) continue;
+      if (block.querySelector('.copy-code-btn') || block.querySelector('.mermaid')) continue;
       const codeEl = block.querySelector('code');
       if (!codeEl) continue;
       const button = document.createElement('button');
@@ -1147,10 +1251,11 @@
     el.mdTitle.textContent = node.text || 'Empty node';
     el.mdBody.innerHTML = renderMarkdown(node.note);
     for (const a of el.mdBody.querySelectorAll('a[href]')) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-    addCopyButtons(el.mdBody);
-    icons(el.mdBody);
     el.md.dataset.node = nodeId;
     if (!el.md.open) el.md.showModal();
+    addCopyButtons(el.mdBody);
+    renderMermaid(el.mdBody);
+    icons(el.mdBody);
     el.mdBody.scrollTop = 0;
   }
 
@@ -1300,13 +1405,15 @@
       if (box) box.style.cursor = '';
       if (!d.moved) { syncSelectionUI(); return; }
       const target = ev.shiftKey ? nodeAt(ev.clientX, ev.clientY, d.id) : null;
+      let reparented = false;
       if (target) {
         const node = nodeById(d.id);
         if (isRoot(d.id)) toast('The root node cannot be reparented.', 'error');
         else if (descendants(d.id).includes(target.id)) toast('A node cannot become a child of its own branch.', 'error');
-        else if (node.parentId !== target.id) { node.parentId = target.id; announce('Node reparented'); }
+        else if (node.parentId !== target.id) { node.parentId = target.id; reparented = true; announce('Node reparented'); }
       }
       commitDrag(d.before, d.id);
+      if (reparented) relayout();
       return;
     }
 
@@ -1315,6 +1422,7 @@
       const node = nodeById(d.id);
       node.height = clampNum(Math.max(node.height, measureHeight(node)), SIZE.minH, SIZE.maxH);
       commitDrag(d.before, d.id);
+      relayout();
       return;
     }
 
@@ -1442,8 +1550,9 @@
 
   function toggleInspector() {
     if (!S.map) return;
-    if (!S.selected) { select(S.map.rootId, { focus: false }); return; }
-    setInspectorOpen(!S.inspectorOpen);
+    const shown = !el.inspector.classList.contains('hidden');
+    if (!S.selected) select(S.map.rootId, { focus: false });
+    setInspectorOpen(!shown);
   }
 
   function moveSelection(dir) {
@@ -1589,21 +1698,39 @@
     el.exportBtn.setAttribute('aria-expanded', 'false');
   }
 
+  let layoutSeq = 0;
+  async function relayout() {
+    const map = S.map;
+    if (!map) return false;
+    const seq = ++layoutSeq;
+    let laid;
+    try {
+      laid = await api('POST', '/api/layout', { ...map, updatedAt: S.version });
+    } catch (e) {
+      toast(e.message, 'error');
+      return false;
+    }
+    if (seq !== layoutSeq || map !== S.map) return false;
+    const placed = new Map(laid.nodes.map((n) => [n.id, n]));
+    for (const n of S.map.nodes) {
+      const p = placed.get(n.id);
+      if (p) { n.x = p.x; n.y = p.y; }
+    }
+    invalidateIndex();
+    for (const id of S.nodeEls.keys()) renderNodeGeometry(id);
+    renderEdges();
+    if (S.selected) ensureVisible(S.selected);
+    scheduleSave();
+    return true;
+  }
+
   async function tidyLayout() {
     if (!S.map) return;
     const before = clone(S.map);
-    try {
-      const laid = await api('POST', '/api/layout', { ...S.map, updatedAt: S.version });
-      S.map.nodes = laid.nodes;
-      invalidateIndex();
-      pushUndo(before);
-      renderAll();
-      fitToView();
-      select(S.selected, { focus: false });
-      announce('Layout tidied');
-    } catch (e) {
-      toast(e.message, 'error');
-    }
+    if (!(await relayout())) return;
+    pushUndo(before);
+    fitToView();
+    announce('Layout tidied');
   }
 
   el.newMap.addEventListener('click', createMap);
