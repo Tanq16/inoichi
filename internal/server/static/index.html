@@ -44,10 +44,10 @@
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: var(--ctp-surface1); border-radius: 9999px; }
       ::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface2); }
+      ::-webkit-scrollbar-corner { background: transparent; }
       textarea::-webkit-resizer {
-        background: linear-gradient(135deg, transparent 0 58%, var(--ctp-overlay0) 58% 66%, transparent 66% 74%, var(--ctp-overlay0) 74% 82%, transparent 82%);
-        background-clip: content-box;
-        padding: 0 4px 4px 0;
+        background-color: var(--ctp-surface0);
+        background-image: linear-gradient(135deg, transparent 0 56%, var(--ctp-overlay0) 56% 63%, transparent 63% 72%, var(--ctp-overlay0) 72% 79%, transparent 79%);
       }
 
       .node { --accent: var(--ctp-overlay0); }
