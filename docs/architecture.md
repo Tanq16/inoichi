@@ -88,13 +88,13 @@ One `index.html` and one `app.js`, no framework and no bundler.
 Nodes are absolutely positioned `div` elements inside a `#scene` that carries a single `translate` and `scale` transform, with an SVG layer underneath drawing the edges in the same coordinate space. HTML nodes rather than SVG shapes is what makes text editing, focus rings, wrapping and screen-reader roles work without reimplementing any of them.
 
 - **Colour** is one accent per node, inherited down the tree. The node's fill is that accent mixed into the canvas ground, the edge into it is the accent at reduced opacity, and there is no border. The mix is computed in JavaScript so the DOM and the SVG export agree on the exact fill.
-- **Chrome** is the `mantle` shade on the `crust` ground with no separator lines. The three top bars share one height so their contents align.
+- **Chrome** sits flush on the `crust` ground with no separator lines, and the canvas is the one surface lifted to `mantle`. The three top bars share one height so their contents align.
 - **Panels** are the map list on the left and the node panel on the right. Both hide, both resize by dragging their inner edge, and their widths live in `localStorage`. The node panel opens with a selection and closes with a deselect, so it is only there when there is a node to edit.
 - **Pan and zoom** are that one transform. Screen-to-map conversion is `(screen - origin - translate) / scale`. Fitting the map to the screen changes the view only and never saves.
 - **Selection** is a roving `tabindex` over `role="treeitem"` elements inside a `role="tree"`, so arrow keys and `Tab` both behave. With nothing selected, `Tab`, `Enter` and the arrows select the root first.
 - **Undo** is a snapshot stack of deep-cloned maps, capped at 60. Snapshot cloning beats a command log here because every mutation is small and the whole map is a few kilobytes. Node panel edits update the node live and push one undo step when the field commits.
 - **Saving** waits one second after the last change and never more than five seconds after the first, collapses a save requested during an in-flight save into one follow-up, and updates the map list from the response rather than refetching it. The server's `updatedAt` is kept outside the map as `S.version` and stamped onto each request, because a snapshot restored by undo would otherwise carry a stale token and every later save would answer `409`. Switching or creating a map flushes the pending save first. The status is one small icon: a blip on success, a red mark that retries on click after a failure.
-- **Markdown** is rendered by marked and sanitised by DOMPurify before it reaches the modal. Links open in a new tab.
+- **Markdown** is rendered by marked with a renderer that highlights fenced code through highlight.js, slugs heading ids, and turns `[!TIP]`-style blockquotes into callouts. The output is sanitised by DOMPurify before it reaches the modal, then copy buttons are added to each code block and Lucide draws the callout icons. Links open in a new tab.
 - **Lookups** go through one `id -> node` and `parent -> children` index rebuilt per render, so a drag does not rescan the node list on every pointer move.
 - **Node heights** are read back from the DOM after each render, so wrapped text, the drawn edges, and the exported SVG all agree on where a node ends.
 - **Export** builds the SVG from the model rather than from the DOM, wrapping text with a canvas measurement. PNG is that SVG drawn onto a canvas, so both exports come from one code path.
@@ -104,7 +104,7 @@ Styling is Tailwind utility classes through the browser build, on the Catppuccin
 
 ## Progressive web app
 
-`manifest.webmanifest` and `sw.js` sit in the static tree but are served from the root, because a manifest under `/static/` would not install the app and a service worker under `/static/` would only control that path. The worker precaches the app shell, never touches `/api/`, answers navigations network-first with the cached shell as fallback, and answers `/static/` cache-first. Its cache name carries a version constant; bump it when the shell list changes.
+`manifest.webmanifest` and `sw.js` sit in the static tree but are served from the root, because a manifest under `/static/` would not install the app and a service worker under `/static/` would only control that path. The worker is a no-op: it registers so the app is installable and caches nothing, so every load shows the running binary's version.
 
 ## Assets
 
@@ -114,8 +114,8 @@ The asset step keeps only the `latin` and `latin-ext` blocks of each Google Font
 
 ## Tests and delivery
 
-`go test ./...` covers the data model and the storage layer: the guards that must stay impossible, the write-behind behaviour, and the save-and-load round trip.
+`go test ./...` pins the guards that must stay impossible: the ids `Validate` rejects, the ids the store refuses to turn into paths, a deleted map never reaching disk, a foreign `Origin` being refused, and an out-of-range `INOICHI_PORT` falling back to the default.
 
 `make smoke` builds the binary, starts it on a temp data directory, and drives Chrome through the actual core loop: create a map, add a child with the keyboard, wait for it to reach disk, undo past that save and add another child that must also reach disk, write Markdown on a node and open it rendered, reload, confirm the node survived, export an SVG through the toolbar, and fail on any console error along the way. It carries the `e2e` build tag so it never runs as part of the unit suite, and it skips with a clear message when no browser is installed.
 
-The `CI` workflow runs vet, the unit tests, the build and the smoke test on every pull request. The `Release` workflow runs on every push to `main`: it derives the next version from the last tag and the commit message (`[minor-release]` or `[major-release]` bump more than the patch), tags it, attaches the four binaries to a GitHub release, and pushes a multi-arch image to Docker Hub.
+The `CI` workflow runs vet, the unit tests, the build and the smoke test on every pull request. The `Release` workflow runs on every push to `main`: the same checks gate it, then it derives the next version from the last tag and the commit message (`[minor-release]` or `[major-release]` bump more than the patch), cuts a draft release, uploads the four binaries and pushes a multi-arch image to Docker Hub, and publishes the draft once every artifact has landed. A failed artifact job deletes the draft instead.

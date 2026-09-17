@@ -16,12 +16,10 @@ var AppVersion = "dev-build"
 var debugFlag bool
 
 var rootCmd = &cobra.Command{
-	Use:     "inoichi",
-	Short:   "A local-first mind mapping editor served from one binary",
-	Version: AppVersion,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		setupLogs()
-	},
+	Use:               "inoichi",
+	Short:             "A local-first mind mapping editor served from one binary",
+	Version:           AppVersion,
+	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 }
 
 func Execute() {
@@ -32,7 +30,9 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "log at debug level instead of info")
+	cobra.OnInitialize(setupLogs)
 }
 
 func setupLogs() {

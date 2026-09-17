@@ -24,6 +24,7 @@ var serveFlags struct {
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Serve the mind mapping editor over HTTP",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		store, err := storage.New(serveFlags.dataDir)
 		if err != nil {

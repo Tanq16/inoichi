@@ -2,6 +2,7 @@
   <img src=".github/assets/logo.png" alt="Inoichi Logo" width="200">
   <h1>Inoichi</h1>
 
+  <a href="https://github.com/tanq16/inoichi/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/tanq16/inoichi/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/tanq16/inoichi/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/inoichi"></a>&nbsp;<a href="https://hub.docker.com/r/tanq16/inoichi"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/tanq16/inoichi"></a><br><br>
   <a href="#features">Features</a> &bull; <a href="#install">Install</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#security">Security</a> &bull; <a href="#notes">Notes</a>
 </div>
 
@@ -16,7 +17,7 @@ It covers the part of a mind mapping tool most people use: draw a tree, move it 
 | Area | What you get |
 |---|---|
 | Editing | Drag, resize, reparent, cross-link, collapse, accent colours |
-| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal |
+| Markdown | Any node carries a Markdown document, edited in the node panel and opened rendered in a modal with highlighted code, callouts and copy buttons |
 | Keyboard | Tab, Enter, Space, Delete, arrow-key navigation, undo and redo, zoom, tidy layout |
 | Persistence | Maps live in memory on the server and reach disk a couple of seconds after the last change |
 | Getting out | Export JSON, SVG or PNG, and import any JSON this app exported |
@@ -35,21 +36,13 @@ Everything is single-user by design. There are no accounts, no sharing, no telem
 
 ## Install
 
-### From source
-
-Needs Go 1.27 and `curl`. `make build` downloads the pinned frontend assets, which are never committed, then compiles them into the binary.
-
-```bash
-git clone https://github.com/tanq16/inoichi.git
-cd inoichi
-make build
-./inoichi serve
-```
-
-`make build-all` produces `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64` binaries instead. Every push to `main` builds those four binaries into a GitHub release and pushes a multi-arch image to Docker Hub.
-
 ### Docker
 
+The container runs as UID and GID 10001, so the mounted directory is created and handed to that user first.
+
+```bash
+mkdir -p ./data && chown 10001:10001 ./data
+```
 ```bash
 docker run -d --name inoichi \
   -p 8080:8080 \
@@ -57,7 +50,7 @@ docker run -d --name inoichi \
   tanq16/inoichi:latest
 ```
 
-Available at `http://localhost:8080`. The container runs as UID and GID 10001, so the mounted directory has to be writable by that user. The same setup as a compose file:
+Available at `http://localhost:8080`. The same setup as a compose file:
 
 ```yaml
 services:
@@ -69,6 +62,21 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/app/data # change as needed
+```
+
+### Release binary
+
+Every release on the [releases page](https://github.com/tanq16/inoichi/releases) carries a static binary for `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64`. Download the one for your platform, mark it executable, and run `inoichi serve`.
+
+### From source
+
+Needs Go 1.27 and `curl`. `make build` downloads the pinned frontend assets, which are never committed, then compiles them into the binary.
+
+```bash
+git clone https://github.com/tanq16/inoichi.git
+cd inoichi
+make build
+./inoichi serve
 ```
 
 ## Usage
@@ -156,7 +164,7 @@ Imported JSON is validated before it is stored: ids are checked against a strict
 ## Notes
 
 - **No Xmind interoperability.** Inoichi does not read or write `.xmind`, `.mm`, or OPML. Its JSON is the only format that round-trips.
-- **Desktop only.** A portrait or phone-sized window gets a notice instead of the editor. The app still installs as a progressive web app on a desktop browser, and the service worker keeps the shell available when the server is down.
+- **Desktop only.** A portrait or phone-sized window gets a notice instead of the editor. The app still installs as a progressive web app on a desktop browser, and its service worker caches nothing, so a refresh always shows the running binary's version.
 - **Exported SVG and PNG use the reader's fonts.** No font is embedded, so an exported file falls back to the viewer's sans-serif if Inter is not installed. Markdown is not part of the image exports; a node with Markdown carries a page icon in them.
 - **One tree per map.** A node has exactly one parent, and cross links are decoration rather than a second hierarchy.
 - **One tab at a time.** There is no merge. A save from a tab whose copy has fallen behind is refused with a conflict rather than applied.
