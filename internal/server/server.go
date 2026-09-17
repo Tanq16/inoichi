@@ -1,7 +1,9 @@
 package server
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -14,6 +16,8 @@ import (
 
 //go:embed static
 var staticFiles embed.FS
+
+const shutdownTimeout = 10 * time.Second
 
 type Server struct {
 	host    string
@@ -43,6 +47,9 @@ func (s *Server) Setup() error {
 	s.mux.HandleFunc("DELETE /api/maps/{id}", s.handleDeleteMap)
 	s.mux.HandleFunc("POST /api/layout", s.handleLayout)
 
+	s.mux.HandleFunc("GET /manifest.webmanifest", s.handleStaticFile("static/manifest.webmanifest", "application/manifest+json", ""))
+	s.mux.HandleFunc("GET /sw.js", s.handleStaticFile("static/sw.js", "text/javascript; charset=utf-8", "no-store"))
+
 	s.mux.HandleFunc("GET /", s.handleIndex)
 	return nil
 }
@@ -67,7 +74,8 @@ func (s *Server) SeedSample() error {
 	return nil
 }
 
-func (s *Server) Run() error {
+// Run serves until ctx is cancelled, then drains open connections for up to shutdownTimeout.
+func (s *Server) Run(ctx context.Context) error {
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	srv := &http.Server{
 		Addr:              addr,
@@ -77,8 +85,26 @@ func (s *Server) Run() error {
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	log.Info().Str("addr", addr).Str("data", s.store.Dir()).Msg("starting")
-	return srv.ListenAndServe()
+	errc := make(chan error, 1)
+	go func() {
+		log.Info().Str("addr", addr).Str("data", s.store.Dir()).Msg("starting")
+		errc <- srv.ListenAndServe()
+	}()
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+	log.Info().Msg("shutting down")
+	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(stopCtx); err != nil {
+		return err
+	}
+	if err := <-errc; !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -90,12 +116,20 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	data, err := staticFiles.ReadFile("static/index.html")
-	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
+	s.handleStaticFile("static/index.html", "text/html; charset=utf-8", "no-store")(w, r)
+}
+
+func (s *Server) handleStaticFile(name, contentType, cacheControl string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFiles.ReadFile(name)
+		if err != nil {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		if cacheControl != "" {
+			w.Header().Set("Cache-Control", cacheControl)
+		}
+		w.Write(data)
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Write(data)
 }

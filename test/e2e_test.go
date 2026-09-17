@@ -16,12 +16,17 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/browser"
+	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
 )
 
-const childText = "Child from the smoke test"
+const (
+	childText    = "Child from the smoke test"
+	secondText   = "Second child after an undo"
+	markdownHead = "Heading from the smoke test"
+)
 
 var chromeCandidates = []string{
 	"/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -99,10 +104,45 @@ func TestCoreLoop(t *testing.T) {
 
 	waitForDisk(t, dataDir, childText)
 
+	// Adding and naming the child are two undo steps. Undoing both restores a
+	// snapshot taken before the save above, and the save that follows must still
+	// be accepted, so the version token cannot live inside the snapshot.
+	if err := chromedp.Run(ctx,
+		chromedp.KeyEvent("z", chromedp.KeyModifiers(input.ModifierCtrl)),
+		chromedp.KeyEvent("z", chromedp.KeyModifiers(input.ModifierCtrl)),
+		waitFor(ctx, `document.querySelectorAll('#nodes .node').length === 1`),
+		chromedp.KeyEvent(kb.Tab),
+		waitFor(ctx, `document.querySelectorAll('#nodes .node').length === 2`),
+		chromedp.KeyEvent(secondText),
+		chromedp.KeyEvent(kb.Enter),
+	); err != nil {
+		t.Fatalf("undoing and adding a new child failed: %v", err)
+	}
+
+	waitForDisk(t, dataDir, secondText)
+	if strings.Contains(readSavedMap(t, dataDir), childText) {
+		t.Fatalf("the undone node %q is still on disk after a later save", childText)
+	}
+
+	if err := chromedp.Run(ctx,
+		chromedp.Click(`#insp-note`, chromedp.ByQuery),
+		chromedp.SendKeys(`#insp-note`, "# "+markdownHead+"\n\nBody text.", chromedp.ByQuery),
+		chromedp.Click(`#nodes .node[aria-selected="true"]`, chromedp.ByQuery),
+		chromedp.Click(`#nodes .node[aria-selected="true"] [data-role="note"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#md[open] #md-body h1`, chromedp.ByQuery),
+		waitFor(ctx, fmt.Sprintf(`document.querySelector('#md-body h1').textContent === %q`, markdownHead)),
+		chromedp.KeyEvent(kb.Escape),
+		waitFor(ctx, `!document.querySelector('#md').open`),
+	); err != nil {
+		t.Fatalf("writing Markdown on a node and opening it rendered failed: %v", err)
+	}
+
+	waitForDisk(t, dataDir, markdownHead)
+
 	if err := chromedp.Run(ctx,
 		chromedp.Reload(),
 		chromedp.WaitVisible(`#nodes .node`, chromedp.ByQuery),
-		waitFor(ctx, fmt.Sprintf(`[...document.querySelectorAll('#nodes .node')].some(n => n.textContent.includes(%q))`, childText)),
+		waitFor(ctx, fmt.Sprintf(`[...document.querySelectorAll('#nodes .node')].some(n => n.textContent.includes(%q))`, secondText)),
 	); err != nil {
 		t.Fatalf("the child node did not survive a reload, so autosave or persistence is broken: %v", err)
 	}
@@ -116,12 +156,12 @@ func TestCoreLoop(t *testing.T) {
 	}
 
 	svg := waitForDownload(t, downloads, ".svg")
-	if !strings.Contains(svg, "<svg") || !strings.Contains(textOf(svg), childText) {
+	if !strings.Contains(svg, "<svg") || !strings.Contains(textOf(svg), secondText) {
 		t.Fatalf("the exported SVG does not carry the node text, got %d bytes", len(svg))
 	}
 
 	saved := readSavedMap(t, dataDir)
-	if !strings.Contains(saved, childText) {
+	if !strings.Contains(saved, secondText) {
 		t.Fatalf("no map file on disk holds the new node text")
 	}
 

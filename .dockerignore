@@ -7,3 +7,4 @@ internal/server/static/js
 internal/server/static/css
 internal/server/static/fonts
 internal/server/static/.assets-stamp
+data/

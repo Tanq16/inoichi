@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#11111b">
     <title>Inoichi</title>
 
+    <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" type="image/x-icon" href="/static/icons/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
@@ -14,6 +16,8 @@
     <link rel="stylesheet" href="/static/css/jetbrains-mono.css">
 
     <script src="/static/js/lucide.min.js"></script>
+    <script src="/static/js/marked.js"></script>
+    <script src="/static/js/purify.min.js"></script>
     <script src="/static/js/tailwind.js"></script>
     <style>
       /* Catppuccin Mocha */
@@ -29,15 +33,51 @@
         --ctp-mantle: #181825;    --ctp-crust: #11111b;
       }
       ::selection { background: var(--ctp-surface2); color: var(--ctp-text); }
-      ::-webkit-scrollbar { width: 10px; height: 10px; }
-      ::-webkit-scrollbar-track { background: var(--ctp-crust); }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: var(--ctp-surface1); border-radius: 9999px; }
       ::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface2); }
+
+      .node { --accent: var(--ctp-overlay0); }
+      .node.selected { box-shadow: 0 0 0 2px var(--ctp-crust), 0 0 0 4px var(--accent); }
+      .node.drop-target { box-shadow: 0 0 0 2px var(--ctp-crust), 0 0 0 4px var(--ctp-green); }
       .node-text[contenteditable="true"] { outline: none; cursor: text; }
-      .node-text:empty::before { content: attr(data-placeholder); color: var(--ctp-overlay0); }
+      .node-text:empty::before { content: attr(data-placeholder); color: var(--ctp-overlay1); }
+      .node-toggle, .node-note { color: var(--accent); }
+      .node-handle, .node-port { background: var(--accent); }
+
+      .resizer { cursor: col-resize; }
+      .resizer:hover, .resizer.active { background: var(--ctp-surface1); }
+
+      @keyframes inoichi-blip { 0% { opacity: 0; transform: scale(0.6); } 20% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+      .blip { animation: inoichi-blip 1.4s ease-out forwards; }
+      @keyframes inoichi-spin { to { transform: rotate(360deg); } }
+      .spin { animation: inoichi-spin 1s linear infinite; }
       @keyframes inoichi-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
       .pulse { animation: inoichi-pulse 1.2s ease-in-out infinite; }
-      @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+      @media (prefers-reduced-motion: reduce) { .blip, .spin, .pulse { animation: none; } .blip { opacity: 1; } }
+
+      /* Rendered Markdown */
+      .md { color: var(--ctp-subtext1); font-size: 0.9375rem; line-height: 1.65; }
+      .md > :first-child { margin-top: 0; }
+      .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { color: var(--ctp-text); font-family: 'Google Sans', sans-serif; font-weight: 600; margin: 1.4em 0 0.5em; line-height: 1.25; }
+      .md h1 { font-size: 1.5rem; } .md h2 { font-size: 1.25rem; } .md h3 { font-size: 1.1rem; } .md h4, .md h5, .md h6 { font-size: 1rem; }
+      .md p, .md ul, .md ol, .md pre, .md blockquote, .md table { margin: 0 0 0.9em; }
+      .md ul, .md ol { padding-left: 1.4em; } .md ul { list-style: disc; } .md ol { list-style: decimal; } .md li + li { margin-top: 0.2em; }
+      .md li > ul, .md li > ol { margin: 0.2em 0 0; }
+      .md a { color: var(--ctp-blue); text-decoration: underline; text-underline-offset: 2px; }
+      .md strong { color: var(--ctp-text); font-weight: 600; } .md em { font-style: italic; }
+      .md code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--ctp-surface0); color: var(--ctp-peach); border-radius: 0.3rem; padding: 0.1em 0.35em; }
+      .md pre { background: var(--ctp-crust); border-radius: 0.6rem; padding: 0.85rem 1rem; overflow-x: auto; }
+      .md pre code { background: transparent; color: var(--ctp-text); padding: 0; font-size: 0.8125rem; }
+      .md blockquote { border-left: 3px solid var(--ctp-surface2); padding-left: 1em; color: var(--ctp-subtext0); }
+      .md hr { border: 0; height: 1px; background: var(--ctp-surface0); margin: 1.4em 0; }
+      .md table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+      .md th, .md td { padding: 0.4em 0.7em; text-align: left; }
+      .md th { color: var(--ctp-text); background: var(--ctp-surface0); font-weight: 600; }
+      .md tr:nth-child(even) td { background: var(--ctp-base); }
+      .md img { max-width: 100%; border-radius: 0.5rem; }
+      .md input[type="checkbox"] { margin-right: 0.4em; accent-color: var(--ctp-mauve); }
     </style>
     <style type="text/tailwindcss">
       @theme {
@@ -59,45 +99,55 @@
         --font-display: 'Google Sans', sans-serif;
         --font-mono: 'JetBrains Mono', monospace;
       }
+      @utility icon-btn {
+        @apply inline-flex items-center justify-center h-8 w-8 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1 shrink-0;
+      }
+      @utility field {
+        @apply w-full bg-surface0 rounded-lg px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-mauve/60 placeholder:text-overlay0;
+      }
+      @utility btn-primary {
+        @apply inline-flex items-center justify-center gap-2 bg-mauve text-crust font-medium rounded-lg px-3 py-2 text-sm hover:bg-lavender focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve focus-visible:ring-offset-2 focus-visible:ring-offset-mantle;
+      }
+      @utility btn-quiet {
+        @apply inline-flex items-center justify-center gap-2 bg-surface0 text-text rounded-lg px-3 py-2 text-sm hover:bg-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve;
+      }
     </style>
 </head>
-<body class="bg-crust text-subtext0 font-sans h-screen overflow-hidden">
+<body class="bg-crust text-subtext0 font-sans h-screen overflow-hidden select-none">
 
-<div class="hidden" aria-hidden="true">
-  <span class="border-mauve text-mauve bg-mauve"></span><span class="border-blue text-blue bg-blue"></span>
-  <span class="border-green text-green bg-green"></span><span class="border-peach text-peach bg-peach"></span>
-  <span class="border-pink text-pink bg-pink"></span><span class="border-teal text-teal bg-teal"></span>
-  <span class="border-yellow text-yellow bg-yellow"></span><span class="border-red text-red bg-red"></span>
-  <span class="border-sapphire text-sapphire bg-sapphire"></span><span class="border-lavender text-lavender bg-lavender"></span>
-  <span class="border-surface1 text-surface1 bg-surface1"></span>
-  <span class="ring-2 ring-mauve ring-green ring-text ring-offset-2 ring-offset-crust"></span>
+<a href="#canvas" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:bg-surface0 focus:text-text focus:rounded-lg focus:px-3 focus:py-2">Skip to the map canvas</a>
+
+<div id="desktop-only" class="hidden fixed inset-0 z-50 bg-crust grid place-items-center px-8 text-center" role="alertdialog" aria-labelledby="desktop-only-title">
+  <div class="max-w-sm">
+    <img src="/static/icons/logo.png" alt="" class="w-14 h-14 mx-auto" width="56" height="56">
+    <h1 id="desktop-only-title" class="mt-4 text-xl font-display font-semibold text-text">Inoichi needs a desktop window</h1>
+    <p class="mt-2 text-sm text-subtext0">The editor is built for a landscape screen with a keyboard and a pointer. Open it on a desktop, or widen this window.</p>
+  </div>
 </div>
-
-<a href="#canvas" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:bg-mantle focus:text-text focus:border focus:border-mauve focus:rounded-lg focus:px-3 focus:py-2">Skip to the map canvas</a>
 
 <div class="flex h-full">
 
-  <aside id="sidebar" class="w-72 shrink-0 bg-crust border-r border-surface0 flex flex-col max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-30 max-md:hidden" aria-label="Maps">
-    <div class="px-4 py-3 border-b border-surface0 flex items-center gap-2">
-      <img src="/static/icons/logo.png" alt="" class="w-7 h-7" width="28" height="28">
-      <span class="text-lg font-semibold font-display text-text">Inoichi</span>
-      <button id="sidebar-close" class="md:hidden ml-auto text-overlay1 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve rounded" aria-label="Close the map list">
-        <i data-lucide="x" class="w-4 h-4"></i>
+  <aside id="sidebar" class="shrink-0 bg-mantle flex flex-col" aria-label="Maps">
+    <div class="h-12 px-3 flex items-center gap-2 shrink-0">
+      <img src="/static/icons/logo.png" alt="" class="w-6 h-6" width="24" height="24">
+      <span class="text-base font-semibold font-display text-text">Inoichi</span>
+      <button id="sidebar-close" class="icon-btn ml-auto" aria-label="Hide the map list" title="Hide the map list ([)">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
       </button>
     </div>
 
-    <div class="px-3 py-3 flex gap-2">
-      <button id="new-map" class="flex-1 inline-flex items-center justify-center gap-2 bg-mauve text-crust font-medium rounded-lg px-3 py-2 text-sm hover:bg-lavender focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve focus-visible:ring-offset-2 focus-visible:ring-offset-crust">
+    <div class="px-3 pb-2 flex gap-2 shrink-0">
+      <button id="new-map" class="btn-primary flex-1">
         <i data-lucide="plus" class="w-4 h-4"></i> New map
       </button>
-      <button id="import-map" class="inline-flex items-center justify-center gap-2 bg-surface0 text-text rounded-lg px-3 py-2 text-sm hover:bg-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve focus-visible:ring-offset-2 focus-visible:ring-offset-crust" aria-label="Import a map from a JSON file">
+      <button id="import-map" class="btn-quiet px-2.5" aria-label="Import a map from a JSON file" title="Import JSON">
         <i data-lucide="upload" class="w-4 h-4"></i>
       </button>
       <input id="import-file" type="file" accept="application/json,.json" class="hidden">
     </div>
 
-    <div id="map-list-region" class="flex-1 overflow-y-auto px-3 pb-3">
-      <div id="map-list-loading" class="space-y-2 pulse" role="status" aria-label="Loading maps">
+    <div id="map-list-region" class="flex-1 overflow-y-auto px-2 pb-2">
+      <div id="map-list-loading" class="space-y-1 px-1 pulse" role="status" aria-label="Loading maps">
         <div class="h-12 rounded-lg bg-surface0"></div>
         <div class="h-12 rounded-lg bg-surface0"></div>
         <div class="h-12 rounded-lg bg-surface0"></div>
@@ -107,64 +157,61 @@
         <p class="mt-3 text-sm text-subtext0">No maps yet.</p>
         <p class="mt-1 text-xs text-overlay1">Create one, or import a JSON file you exported earlier.</p>
       </div>
-      <div id="map-list-error" class="hidden rounded-lg border border-red bg-mantle p-3">
+      <div id="map-list-error" class="hidden rounded-lg bg-surface0 p-3">
         <p class="text-sm text-red">Could not load your maps.</p>
         <p id="map-list-error-detail" class="mt-1 text-xs text-overlay1"></p>
-        <button id="map-list-retry" class="mt-2 text-xs bg-surface0 text-text rounded-md px-2 py-1 hover:bg-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve">Try again</button>
+        <button id="map-list-retry" class="mt-2 text-xs bg-surface1 text-text rounded-md px-2 py-1 hover:bg-surface2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve">Try again</button>
       </div>
-      <ul id="map-list" class="space-y-1"></ul>
+      <ul id="map-list" class="space-y-0.5"></ul>
     </div>
 
-    <div class="px-4 py-3 border-t border-surface0 text-xs text-overlay1 space-y-1">
-      <button id="show-help" class="inline-flex items-center gap-1.5 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve rounded">
-        <i data-lucide="keyboard" class="w-3.5 h-3.5"></i> Shortcuts and data location
+    <div class="h-10 px-3 flex items-center shrink-0 text-xs text-overlay1">
+      <button id="show-help" class="inline-flex items-center gap-1.5 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve rounded px-1 py-0.5">
+        <i data-lucide="keyboard" class="w-3.5 h-3.5"></i> Shortcuts <span class="text-overlay0">(press ?)</span>
       </button>
-      <p id="version-line" class="font-mono text-overlay0"></p>
     </div>
   </aside>
+  <div id="sidebar-resizer" class="resizer w-1 shrink-0 bg-mantle" role="separator" aria-orientation="vertical" aria-label="Resize the map list"></div>
 
-  <div class="flex-1 flex flex-col min-w-0">
+  <div class="flex-1 flex flex-col min-w-0 bg-mantle">
 
-    <header class="bg-crust border-b border-surface0 px-3 py-2 flex items-center gap-2 shrink-0">
-      <button id="sidebar-open" class="md:hidden text-overlay1 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve rounded p-1" aria-label="Open the map list" aria-expanded="false">
-        <i data-lucide="panel-left" class="w-5 h-5"></i>
+    <header class="h-12 px-3 flex items-center gap-1 shrink-0">
+      <button id="sidebar-open" class="icon-btn hidden" aria-label="Show the map list" title="Show the map list ([)">
+        <i data-lucide="panel-left-open" class="w-4 h-4"></i>
       </button>
 
       <label for="map-title" class="sr-only">Map title</label>
       <input id="map-title" type="text" maxlength="120" disabled
-             class="min-w-0 flex-1 max-w-sm bg-transparent border border-transparent hover:border-surface1 focus:border-mauve focus:bg-surface0 rounded-lg px-2 py-1.5 text-text font-display font-medium disabled:opacity-40 focus:outline-none pointer-coarse:text-[16px]"
+             class="min-w-0 flex-1 max-w-sm bg-transparent hover:bg-surface0/60 focus:bg-surface0 rounded-lg px-2.5 py-1.5 text-text font-display font-medium disabled:opacity-40 focus:outline-none"
              placeholder="Map title" aria-describedby="title-error">
       <p id="title-error" class="hidden text-xs text-red" role="alert"></p>
 
-      <div id="save-status" class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md bg-surface0 text-overlay1 shrink-0" aria-hidden="true">
-        <i data-lucide="check" class="w-3.5 h-3.5"></i><span class="max-md:hidden">Saved</span>
-      </div>
-      <button id="save-retry" class="hidden text-xs bg-red text-crust rounded-md px-2 py-1 font-medium hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-red shrink-0">Retry save</button>
+      <button id="save-status" class="icon-btn w-7 h-7 text-overlay0 invisible" aria-live="polite" title="Saved">
+        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+      </button>
 
-      <div class="ml-auto flex items-center gap-1 shrink-0">
-        <button id="btn-undo" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1" aria-label="Undo" title="Undo (Ctrl+Z)"><i data-lucide="undo-2" class="w-4 h-4"></i></button>
-        <button id="btn-redo" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1" aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><i data-lucide="redo-2" class="w-4 h-4"></i></button>
-        <span class="w-px h-5 bg-surface1 mx-1"></span>
-        <button id="btn-tidy" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1" aria-label="Tidy the layout" title="Tidy layout (Ctrl+Shift+L)"><i data-lucide="layout-grid" class="w-4 h-4"></i></button>
-        <span class="max-md:hidden contents">
-          <button id="btn-zoom-out" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1" aria-label="Zoom out" title="Zoom out (Ctrl+-)"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
-          <button id="btn-zoom-reset" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1 font-mono text-xs w-14" aria-label="Reset zoom" title="Fit to screen (Ctrl+0)">100%</button>
-          <button id="btn-zoom-in" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1" aria-label="Zoom in" title="Zoom in (Ctrl+=)"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
-        </span>
-        <span class="w-px h-5 bg-surface1 mx-1 max-md:hidden"></span>
-        <button id="toggle-inspector" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1 md:hidden" aria-label="Show the node panel" aria-expanded="false"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i></button>
+      <div class="ml-auto flex items-center gap-0.5 shrink-0">
+        <button id="btn-undo" class="icon-btn" aria-label="Undo" title="Undo (Ctrl+Z)"><i data-lucide="undo-2" class="w-4 h-4"></i></button>
+        <button id="btn-redo" class="icon-btn" aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><i data-lucide="redo-2" class="w-4 h-4"></i></button>
+        <span class="w-2"></span>
+        <button id="btn-tidy" class="icon-btn" aria-label="Tidy the layout" title="Tidy layout (Ctrl+Shift+L)"><i data-lucide="layout-grid" class="w-4 h-4"></i></button>
+        <button id="btn-zoom-out" class="icon-btn" aria-label="Zoom out" title="Zoom out (Ctrl+-)"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+        <button id="btn-zoom-reset" class="icon-btn w-12 font-mono text-xs" aria-label="Fit the map to the screen" title="Fit to screen (Ctrl+0)">100%</button>
+        <button id="btn-zoom-in" class="icon-btn" aria-label="Zoom in" title="Zoom in (Ctrl+=)"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+        <span class="w-2"></span>
         <div class="relative">
-          <button id="btn-export" class="inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-overlay1 hover:text-text hover:bg-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-overlay1" aria-label="Export this map" aria-haspopup="true" aria-expanded="false" title="Export"><i data-lucide="download" class="w-4 h-4"></i></button>
-          <div id="export-menu" class="hidden absolute right-0 mt-1 w-44 bg-mantle border border-surface1 rounded-lg p-1 z-20 shadow-xl" aria-label="Export format">
-            <button class="export-item block w-full text-left text-sm text-subtext0 rounded-md px-3 py-2 hover:bg-surface0 hover:text-text focus:outline-none focus-visible:bg-surface0 focus-visible:text-text" data-format="json">JSON (re-importable)</button>
-            <button class="export-item block w-full text-left text-sm text-subtext0 rounded-md px-3 py-2 hover:bg-surface0 hover:text-text focus:outline-none focus-visible:bg-surface0 focus-visible:text-text" data-format="svg">SVG image</button>
-            <button class="export-item block w-full text-left text-sm text-subtext0 rounded-md px-3 py-2 hover:bg-surface0 hover:text-text focus:outline-none focus-visible:bg-surface0 focus-visible:text-text" data-format="png">PNG image</button>
+          <button id="btn-export" class="icon-btn" aria-label="Export this map" aria-haspopup="true" aria-expanded="false" title="Export"><i data-lucide="download" class="w-4 h-4"></i></button>
+          <div id="export-menu" class="hidden absolute right-0 mt-1 w-36 bg-surface0 rounded-lg p-1 z-20 shadow-xl" aria-label="Export format">
+            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface1 hover:text-text focus:outline-none focus-visible:bg-surface1 focus-visible:text-text" data-format="json"><i data-lucide="braces" class="w-3.5 h-3.5"></i> JSON</button>
+            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface1 hover:text-text focus:outline-none focus-visible:bg-surface1 focus-visible:text-text" data-format="svg"><i data-lucide="shapes" class="w-3.5 h-3.5"></i> SVG</button>
+            <button class="export-item flex items-center gap-2 w-full text-left text-sm text-subtext0 rounded-md px-2.5 py-1.5 hover:bg-surface1 hover:text-text focus:outline-none focus-visible:bg-surface1 focus-visible:text-text" data-format="png"><i data-lucide="image" class="w-3.5 h-3.5"></i> PNG</button>
           </div>
         </div>
+        <button id="toggle-inspector" class="icon-btn" aria-label="Show the node panel" aria-expanded="false" title="Node panel (])"><i data-lucide="panel-right" class="w-4 h-4"></i></button>
       </div>
     </header>
 
-    <main id="canvas" class="relative flex-1 overflow-hidden bg-crust touch-none" tabindex="-1">
+    <main id="canvas" class="relative flex-1 overflow-hidden bg-crust rounded-t-xl" tabindex="-1">
 
       <div id="canvas-loading" class="hidden absolute inset-0 z-10 grid place-items-center bg-crust" role="status">
         <div class="flex items-center gap-2 text-overlay1 text-sm pulse"><i data-lucide="loader" class="w-4 h-4"></i> Opening map</div>
@@ -175,7 +222,7 @@
           <i data-lucide="git-fork" class="w-10 h-10 mx-auto text-overlay0"></i>
           <h1 class="mt-4 text-xl font-display font-semibold text-text">Nothing open</h1>
           <p class="mt-2 text-sm text-subtext0">Pick a map on the left, or start a new one. Everything stays in a JSON file on this machine.</p>
-          <button id="empty-new-map" class="mt-5 inline-flex items-center gap-2 bg-mauve text-crust font-medium rounded-lg px-4 py-2 text-sm hover:bg-lavender focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve focus-visible:ring-offset-2 focus-visible:ring-offset-crust">
+          <button id="empty-new-map" class="btn-primary mt-5 px-4">
             <i data-lucide="plus" class="w-4 h-4"></i> New map
           </button>
         </div>
@@ -186,7 +233,7 @@
           <i data-lucide="triangle-alert" class="w-10 h-10 mx-auto text-red"></i>
           <h1 class="mt-4 text-xl font-display font-semibold text-text">Could not open that map</h1>
           <p id="canvas-error-detail" class="mt-2 text-sm text-subtext0"></p>
-          <button id="canvas-retry" class="mt-5 bg-surface0 text-text rounded-lg px-4 py-2 text-sm hover:bg-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve">Try again</button>
+          <button id="canvas-retry" class="btn-quiet mt-5 px-4">Try again</button>
         </div>
       </div>
 
@@ -194,78 +241,88 @@
         <svg id="edges" class="absolute top-0 left-0 overflow-visible pointer-events-none" width="1" height="1" aria-hidden="true"></svg>
         <div id="nodes" role="tree" aria-label="Mind map nodes" class="absolute top-0 left-0"></div>
       </div>
-
-      <div id="hint" class="max-md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-overlay0 bg-mantle/90 border border-surface0 rounded-full px-3 py-1.5 pointer-events-none">
-        Tab adds a child &bull; Enter adds a sibling &bull; F2 renames
-      </div>
     </main>
   </div>
 
-  <aside id="inspector" class="hidden w-72 shrink-0 bg-crust border-l border-surface0 flex-col max-md:fixed max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-72 max-md:max-w-[85vw] max-md:shadow-2xl" aria-label="Selected node">
-    <div class="px-4 py-3 border-b border-surface0 flex items-center">
-      <h2 class="text-sm font-display font-semibold text-text">Node</h2>
-      <button id="inspector-close" class="ml-auto text-overlay1 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve rounded" aria-label="Close the node panel">
-        <i data-lucide="x" class="w-4 h-4"></i>
+  <div id="inspector-resizer" class="resizer w-1 shrink-0 bg-mantle hidden" role="separator" aria-orientation="vertical" aria-label="Resize the node panel"></div>
+  <aside id="inspector" class="hidden shrink-0 bg-mantle flex-col" aria-label="Selected node">
+    <div class="h-12 px-3 flex items-center shrink-0">
+      <h2 class="text-sm font-display font-semibold text-text px-1">Node</h2>
+      <button id="inspector-close" class="icon-btn ml-auto" aria-label="Hide the node panel" title="Hide the node panel (])">
+        <i data-lucide="panel-right-close" class="w-4 h-4"></i>
       </button>
     </div>
-    <div class="p-4 space-y-4 overflow-y-auto">
+    <div class="px-4 pb-4 space-y-5 overflow-y-auto flex-1">
       <div>
-        <label for="insp-text" class="block text-xs text-overlay1 mb-1">Text</label>
-        <textarea id="insp-text" rows="2" maxlength="512" class="w-full bg-surface0 border border-surface1 focus:border-mauve rounded-lg px-3 py-2 text-text text-sm resize-y focus:outline-none pointer-coarse:text-[16px]"></textarea>
-      </div>
-      <div>
-        <label for="insp-note" class="block text-xs text-overlay1 mb-1">Note</label>
-        <textarea id="insp-note" rows="4" maxlength="4000" placeholder="Longer detail that does not belong on the node" class="w-full bg-surface0 border border-surface1 focus:border-mauve rounded-lg px-3 py-2 text-text text-sm resize-y focus:outline-none pointer-coarse:text-[16px]"></textarea>
-        <p id="insp-note-count" class="mt-1 text-right text-xs text-overlay0">0 / 4000</p>
+        <label for="insp-text" class="block text-xs text-overlay1 mb-1.5">Text</label>
+        <textarea id="insp-text" rows="2" maxlength="512" class="field resize-y"></textarea>
       </div>
       <div>
         <span class="block text-xs text-overlay1 mb-2">Accent</span>
         <div id="insp-accents" class="flex flex-wrap gap-2" role="radiogroup" aria-label="Node accent colour"></div>
       </div>
-      <div class="pt-2 border-t border-surface0 space-y-2">
-        <button id="insp-add-child" class="w-full text-left text-sm bg-surface0 text-text rounded-lg px-3 py-2 hover:bg-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve">Add child <span class="float-right text-overlay1 font-mono text-xs">Tab</span></button>
-        <button id="insp-delete" class="w-full text-left text-sm bg-surface0 text-red rounded-lg px-3 py-2 hover:bg-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-red">Delete branch <span class="float-right text-overlay1 font-mono text-xs">Del</span></button>
+      <div class="flex-1 flex flex-col min-h-0">
+        <div class="flex items-center mb-1.5">
+          <label for="insp-note" class="text-xs text-overlay1">Markdown</label>
+          <button id="insp-note-open" class="icon-btn ml-auto w-6 h-6" aria-label="Open the rendered Markdown" title="Open rendered (Ctrl+Enter)">
+            <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        <textarea id="insp-note" rows="12" maxlength="20000" placeholder="# Notes&#10;&#10;Anything longer than a label. Renders as Markdown." class="field font-mono text-xs leading-5 resize-y" spellcheck="false"></textarea>
+      </div>
+      <div class="flex gap-2">
+        <button id="insp-add-child" class="btn-quiet flex-1" title="Add child (Tab)"><i data-lucide="git-branch-plus" class="w-4 h-4"></i> Child</button>
+        <button id="insp-delete" class="btn-quiet flex-1 text-red" title="Delete branch (Delete)"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
       </div>
     </div>
   </aside>
 </div>
 
-<div id="toasts" class="fixed bottom-4 right-4 z-40 space-y-2 w-80 max-w-[calc(100vw-2rem)]"></div>
+<div id="toasts" class="fixed bottom-4 right-4 z-40 space-y-2 w-80"></div>
 <div id="live" class="sr-only" role="status" aria-live="polite"></div>
 
-<dialog id="dialog" aria-labelledby="dialog-title" class="bg-mantle text-subtext0 border border-surface1 rounded-xl p-0 m-auto w-[calc(100%-2rem)] max-w-md backdrop:bg-crust/70">
+<dialog id="dialog" aria-labelledby="dialog-title" class="bg-mantle text-subtext0 rounded-xl p-0 m-auto w-[calc(100%-2rem)] max-w-md shadow-2xl backdrop:bg-crust/70">
   <form method="dialog" id="dialog-form" class="contents">
-    <div class="px-5 pt-5 pb-3">
+    <div class="px-5 pt-5 pb-4">
       <h2 id="dialog-title" class="text-lg font-display font-semibold text-text"></h2>
       <p id="dialog-body" class="mt-2 text-sm text-subtext0"></p>
       <div id="dialog-input-wrap" class="mt-4 hidden">
-        <label id="dialog-label" for="dialog-input" class="block text-xs text-overlay1 mb-1"></label>
-        <input id="dialog-input" type="text" maxlength="120" class="w-full bg-surface0 border border-surface1 focus:border-mauve rounded-lg px-3 py-2 text-text focus:outline-none pointer-coarse:text-[16px]">
+        <label id="dialog-label" for="dialog-input" class="block text-xs text-overlay1 mb-1.5"></label>
+        <input id="dialog-input" type="text" maxlength="120" class="field">
         <p id="dialog-error" class="mt-1 text-xs text-red hidden" role="alert"></p>
       </div>
     </div>
-    <div class="px-5 py-4 bg-base border-t border-surface0 flex justify-end gap-2 rounded-b-xl">
-      <button id="dialog-confirm" value="confirm" class="order-2 text-sm bg-mauve text-crust font-medium rounded-lg px-4 py-2 hover:bg-lavender focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve">OK</button>
-      <button id="dialog-cancel" type="button" class="order-1 text-sm bg-surface0 text-text rounded-lg px-4 py-2 hover:bg-surface1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve">Cancel</button>
+    <div class="px-5 py-3.5 bg-base flex justify-end gap-2 rounded-b-xl">
+      <button id="dialog-confirm" value="confirm" class="order-2 btn-primary px-4">OK</button>
+      <button id="dialog-cancel" type="button" class="order-1 btn-quiet px-4">Cancel</button>
     </div>
   </form>
 </dialog>
 
-<dialog id="help" aria-labelledby="help-title" class="bg-mantle text-subtext0 border border-surface1 rounded-xl p-0 m-auto w-[calc(100%-2rem)] max-w-lg backdrop:bg-crust/70">
-  <div class="px-5 py-4 border-b border-surface0 flex items-center">
-    <h2 id="help-title" class="text-lg font-display font-semibold text-text">Shortcuts and data</h2>
-    <button id="help-close" class="ml-auto text-overlay1 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-mauve rounded" aria-label="Close">
+<dialog id="help" aria-labelledby="help-title" class="bg-mantle text-subtext0 rounded-xl p-0 m-auto w-[calc(100%-2rem)] max-w-lg shadow-2xl backdrop:bg-crust/70">
+  <div class="h-12 px-5 flex items-center">
+    <h2 id="help-title" class="text-base font-display font-semibold text-text">Shortcuts</h2>
+    <button id="help-close" class="icon-btn ml-auto" aria-label="Close">
       <i data-lucide="x" class="w-4 h-4"></i>
     </button>
   </div>
-  <div class="px-5 py-4 max-h-[60vh] overflow-y-auto">
-    <dl id="help-keys" class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm"></dl>
-    <div class="mt-5 pt-4 border-t border-surface0 text-sm space-y-1">
-      <p class="text-overlay1 text-xs uppercase tracking-wide">Your maps are stored at</p>
-      <p id="help-datadir" class="font-mono text-xs text-text break-all">unknown</p>
-      <p class="text-xs text-overlay1">One JSON file per map. Copy that directory to back it up. Inoichi makes no outbound network requests.</p>
-    </div>
+  <div class="px-5 pb-5 max-h-[70vh] overflow-y-auto">
+    <dl id="help-keys" class="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm"></dl>
   </div>
+</dialog>
+
+<dialog id="md" aria-labelledby="md-title" class="bg-mantle text-subtext0 rounded-xl p-0 m-auto w-[calc(100%-2rem)] max-w-3xl shadow-2xl backdrop:bg-crust/70">
+  <div class="h-12 px-5 flex items-center gap-2">
+    <i data-lucide="file-text" class="w-4 h-4 text-overlay1"></i>
+    <h2 id="md-title" class="text-base font-display font-semibold text-text truncate"></h2>
+    <button id="md-edit" class="icon-btn ml-auto" aria-label="Edit this Markdown in the node panel" title="Edit">
+      <i data-lucide="pencil" class="w-4 h-4"></i>
+    </button>
+    <button id="md-close" class="icon-btn" aria-label="Close" title="Close (Esc)">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>
+  </div>
+  <div id="md-body" class="md px-6 pb-6 max-h-[75vh] overflow-y-auto select-text"></div>
 </dialog>
 
 <script src="/static/app.js"></script>

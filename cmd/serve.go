@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"cmp"
+	"context"
 	"os"
-	"path/filepath"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -23,12 +25,12 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Serve the mind mapping editor over HTTP",
 	Run: func(cmd *cobra.Command, args []string) {
-		if serveFlags.dataDir == "" {
-			log.Fatal().Msg("cannot resolve a home directory, pass --data-dir or set INOICHI_DATA_DIR")
-		}
 		store, err := storage.New(serveFlags.dataDir)
 		if err != nil {
 			log.Fatal().Err(err).Str("dir", serveFlags.dataDir).Msg("failed to open the data directory")
+		}
+		store.OnWriteError = func(id string, err error) {
+			log.Error().Err(err).Str("id", id).Msg("failed to write a map to disk, will retry")
 		}
 		srv := server.New(serveFlags.host, serveFlags.port, AppVersion, store)
 		if err := srv.Setup(); err != nil {
@@ -39,16 +41,22 @@ var serveCmd = &cobra.Command{
 				log.Error().Err(err).Msg("failed to seed the sample map, continuing without it")
 			}
 		}
-		if err := srv.Run(); err != nil {
-			log.Fatal().Err(err).Msg("server stopped")
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		runErr := srv.Run(ctx)
+		if err := store.Close(); err != nil {
+			log.Error().Err(err).Msg("failed to write every map to disk on shutdown")
+		}
+		if runErr != nil {
+			log.Fatal().Err(runErr).Msg("server stopped")
 		}
 	},
 }
 
 func init() {
 	serveCmd.Flags().StringVar(&serveFlags.host, "host", cmp.Or(os.Getenv("INOICHI_HOST"), "127.0.0.1"), "address to bind")
-	serveCmd.Flags().IntVar(&serveFlags.port, "port", envPort(), "port to listen on")
-	serveCmd.Flags().StringVar(&serveFlags.dataDir, "data-dir", cmp.Or(os.Getenv("INOICHI_DATA_DIR"), defaultDataDir()), "directory holding the map files")
+	serveCmd.Flags().IntVarP(&serveFlags.port, "port", "p", envPort(), "port to listen on")
+	serveCmd.Flags().StringVarP(&serveFlags.dataDir, "data-dir", "d", cmp.Or(os.Getenv("INOICHI_DATA_DIR"), "data"), "directory holding the map files")
 	serveCmd.Flags().BoolVar(&serveFlags.noSeed, "no-sample", false, "skip writing the sample map into an empty data directory")
 	rootCmd.AddCommand(serveCmd)
 }
@@ -58,12 +66,4 @@ func envPort() int {
 		return v
 	}
 	return 8080
-}
-
-func defaultDataDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".config", "inoichi")
 }
