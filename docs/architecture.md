@@ -1,13 +1,12 @@
 # Architecture
 
-Inoichi is a Go Web Only project: one `serve` command, an embedded single-page frontend, and JSON files on disk. There is no database, no build step for the frontend, and no process other than the binary.
+Inoichi is a Go Web Only project: a root command that serves, an embedded single-page frontend, and JSON files on disk. There is no database, no build step for the frontend, and no process other than the binary.
 
 ## Tree
 
 ```
 main.go                       cmd.Execute()
-cmd/root.go                   zerolog setup, --debug, AppVersion
-cmd/serve.go                  the one command, flags, environment defaults, signal handling
+cmd/root.go                   the one command: flags, environment defaults, zerolog setup, signal handling
 internal/mindmap/             the data model: types, validation, tree operations, layout, sample
 internal/storage/             every map in memory, write-behind to one JSON file per map
 internal/server/              routes, handlers, graceful shutdown, //go:embed static

@@ -253,7 +253,7 @@ func startServer(t *testing.T, binary, dataDir string) string {
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
 
-	cmd := exec.Command(binary, "serve", "--host", "127.0.0.1", "--port", fmt.Sprint(port), "--data-dir", dataDir)
+	cmd := exec.Command(binary, "--host", "127.0.0.1", "--port", fmt.Sprint(port), "--data-dir", dataDir)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {

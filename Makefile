@@ -122,10 +122,10 @@ build-all: assets verify-assets ## Build every platform binary
 # Run and test
 # =============================================================================
 dev: assets ## Run from source with debug logging and a throwaway data directory
-	@go run . serve --debug --host $(HOST) --port $(PORT) --data-dir ./.devdata
+	@go run . --debug --host $(HOST) --port $(PORT) --data-dir ./.devdata
 
 run: build ## Build the binary and serve it the way a release would
-	@./$(APP_NAME) serve --host $(HOST) --port $(PORT) --data-dir $(DATA_DIR)
+	@./$(APP_NAME) --host $(HOST) --port $(PORT) --data-dir $(DATA_DIR)
 
 test: ## Run the unit tests
 	@go test ./...

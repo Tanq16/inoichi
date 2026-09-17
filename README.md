@@ -38,7 +38,7 @@ Everything is single-user by design. There are no accounts, no sharing, no telem
 
 ### Release binary
 
-Every release on the [releases page](https://github.com/tanq16/inoichi/releases) carries a static binary for `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64`. Download the one for your platform, mark it executable, and run `inoichi serve`. The editor is then at `http://localhost:8080`.
+Every release on the [releases page](https://github.com/tanq16/inoichi/releases) carries a static binary for `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64`. Download the one for your platform, mark it executable, and run `inoichi`. The editor is then at `http://localhost:8080`.
 
 ### From source
 
@@ -48,15 +48,15 @@ Needs Go 1.27 and `curl`. `make build` downloads the pinned frontend assets, whi
 git clone https://github.com/tanq16/inoichi.git
 cd inoichi
 make build
-./inoichi serve
+./inoichi
 ```
 
 ## Usage
 
-`inoichi serve` is the only command. Every flag reads an environment variable of the same name as its default, so `.env.example` and the flags describe one set of settings rather than two.
+The binary takes no subcommands: running it serves the editor. Every flag reads an environment variable of the same name as its default, so `.env.example` and the flags describe one set of settings rather than two.
 
 ```bash
-inoichi serve --host 127.0.0.1 -p 8080 -d ./data
+inoichi --host 127.0.0.1 -p 8080 -d ./data
 ```
 
 | Flag | Environment | Default | Description |
@@ -71,7 +71,7 @@ Inoichi holds no secrets and needs no credentials, so `.env.example` carries onl
 
 ### Where your data lives
 
-One JSON file per map at `<data-dir>/maps/<id>.json`, written at mode `0600` inside a directory at `0700`. The data directory defaults to `data` inside the directory you start the binary from, so a plain `inoichi serve` keeps its maps next to it.
+One JSON file per map at `<data-dir>/maps/<id>.json`, written at mode `0600` inside a directory at `0700`. The data directory defaults to `data` inside the directory you start the binary from, so a plain `inoichi` keeps its maps next to it.
 
 The server keeps every map in memory and writes a changed map to disk two seconds after its last save, so a burst of edits costs one write. Stopping the server with Ctrl-C or SIGTERM writes everything that is still pending before it exits.
 
