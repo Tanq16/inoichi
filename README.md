@@ -2,7 +2,7 @@
   <img src=".github/assets/logo.png" alt="Inoichi Logo" width="200">
   <h1>Inoichi</h1>
 
-  <a href="https://github.com/tanq16/inoichi/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/tanq16/inoichi/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/tanq16/inoichi/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/inoichi"></a>&nbsp;<a href="https://hub.docker.com/r/tanq16/inoichi"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/tanq16/inoichi"></a><br><br>
+  <a href="https://github.com/tanq16/inoichi/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/tanq16/inoichi/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/tanq16/inoichi/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/inoichi"></a><br><br>
   <a href="#features">Features</a> &bull; <a href="#install">Install</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#security">Security</a> &bull; <a href="#notes">Notes</a>
 </div>
 
@@ -21,7 +21,7 @@ It covers the part of a mind mapping tool most people use: draw a tree, move it 
 | Keyboard | Tab, Enter, Space, Delete, arrow-key navigation, undo and redo, zoom, tidy layout |
 | Persistence | Maps live in memory on the server and reach disk a couple of seconds after the last change |
 | Getting out | Export JSON, SVG or PNG, and import any JSON this app exported |
-| Deployment | One static binary with the frontend embedded, or a container image, installable as a desktop web app |
+| Deployment | One static binary with the frontend embedded, installable as a desktop web app |
 
 Everything is single-user by design. There are no accounts, no sharing, no telemetry, and no outbound network requests at run time. The editor is built for a desktop window and refuses portrait or phone-sized screens.
 
@@ -36,37 +36,9 @@ Everything is single-user by design. There are no accounts, no sharing, no telem
 
 ## Install
 
-### Docker
-
-The container runs as UID and GID 10001, so the mounted directory is created and handed to that user first.
-
-```bash
-mkdir -p ./data && chown 10001:10001 ./data
-```
-```bash
-docker run -d --name inoichi \
-  -p 8080:8080 \
-  -v ./data:/app/data \
-  tanq16/inoichi:latest
-```
-
-Available at `http://localhost:8080`. The same setup as a compose file:
-
-```yaml
-services:
-  inoichi:
-    image: tanq16/inoichi:latest
-    container_name: inoichi
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./data:/app/data # change as needed
-```
-
 ### Release binary
 
-Every release on the [releases page](https://github.com/tanq16/inoichi/releases) carries a static binary for `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64`. Download the one for your platform, mark it executable, and run `inoichi serve`.
+Every release on the [releases page](https://github.com/tanq16/inoichi/releases) carries a static binary for `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64`. Download the one for your platform, mark it executable, and run `inoichi serve`. The editor is then at `http://localhost:8080`.
 
 ### From source
 

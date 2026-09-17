@@ -1,10 +1,9 @@
-.PHONY: help install assets verify-assets font clean build build-for build-all dev run test smoke docker-build docker-push version
+.PHONY: help install assets verify-assets font clean build build-for build-all dev run test smoke version
 
 # =============================================================================
 # Variables
 # =============================================================================
 APP_NAME    := inoichi
-DOCKER_USER := tanq16
 MODULE      := github.com/tanq16/inoichi
 
 VERSION ?= dev-build
@@ -133,22 +132,6 @@ test: ## Run the unit tests
 
 smoke: build ## Drive the real UI in a headless browser end to end
 	@go test -tags=e2e -count=1 -timeout 180s ./test/...
-
-# =============================================================================
-# Docker
-# =============================================================================
-docker-build: ## Build the container image for this machine
-	@docker build --build-arg VERSION=$(VERSION) -t $(DOCKER_USER)/$(APP_NAME):$(VERSION) .
-	@docker tag $(DOCKER_USER)/$(APP_NAME):$(VERSION) $(DOCKER_USER)/$(APP_NAME):latest
-
-# buildx cannot load a multi-platform result into the local daemon, so the
-# manifest is built and pushed in one step rather than built then pushed.
-docker-push: ## Build linux/amd64 and linux/arm64 and push one manifest
-	@docker buildx build --platform linux/amd64,linux/arm64 \
-	  --build-arg VERSION=$(VERSION) \
-	  -t $(DOCKER_USER)/$(APP_NAME):$(VERSION) \
-	  -t $(DOCKER_USER)/$(APP_NAME):latest \
-	  --push .
 
 # =============================================================================
 # Version
