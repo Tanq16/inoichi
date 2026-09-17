@@ -29,10 +29,10 @@ const (
 )
 
 var chromeCandidates = []string{
-	"/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+	"/usr/bin/google-chrome",
+	"/usr/bin/google-chrome-stable",
 	"/usr/bin/chromium",
 	"/usr/bin/chromium-browser",
-	"/usr/bin/google-chrome",
 	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 }
 
@@ -46,7 +46,9 @@ func TestCoreLoop(t *testing.T) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(chrome),
 		chromedp.NoSandbox,
+		chromedp.DisableGPU,
 		chromedp.WindowSize(1440, 900),
+		chromedp.WSURLReadTimeout(90*time.Second),
 	)
 	alloc, cancelAlloc := chromedp.NewExecAllocator(t.Context(), opts...)
 	defer cancelAlloc()
