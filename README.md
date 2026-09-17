@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/assets/logo.png" alt="Inoichi Logo" width="200">
+  <img src=".github/assets/logo.svg" alt="Inoichi Logo" width="300">
   <h1>Inoichi</h1>
 
   <a href="https://github.com/tanq16/inoichi/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/tanq16/inoichi/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/tanq16/inoichi/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/inoichi"></a><br><br>

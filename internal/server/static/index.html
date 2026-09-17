@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="overscroll-none">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +10,7 @@
     <title>Inoichi</title>
 
     <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/favicon.svg">
     <link rel="icon" type="image/x-icon" href="/static/icons/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
@@ -42,6 +43,11 @@
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: var(--ctp-surface1); border-radius: 9999px; }
       ::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface2); }
+      textarea::-webkit-resizer {
+        background: linear-gradient(135deg, transparent 0 50%, var(--ctp-overlay0) 50% 60%, transparent 60% 70%, var(--ctp-overlay0) 70% 80%, transparent 80%);
+        background-clip: content-box;
+        padding: 0 3px 3px 0;
+      }
 
       .node { --accent: var(--ctp-overlay0); }
       .node.selected { box-shadow: 0 0 0 2px var(--ctp-mantle), 0 0 0 4px var(--accent); }
@@ -147,7 +153,7 @@
       }
     </style>
 </head>
-<body class="bg-crust text-subtext0 font-sans h-screen overflow-hidden select-none">
+<body class="bg-crust text-subtext0 font-sans h-screen overflow-hidden overscroll-none select-none">
 
 <a href="#canvas" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:bg-surface0 focus:text-text focus:rounded-lg focus:px-3 focus:py-2">Skip to the map canvas</a>
 

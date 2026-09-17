@@ -1804,6 +1804,15 @@
     if (target) openMap(target.id);
   }
 
+  document.addEventListener('wheel', (ev) => {
+    if (Math.abs(ev.deltaX) <= Math.abs(ev.deltaY)) return;
+    for (let n = ev.target instanceof Element ? ev.target : null; n && n !== document.body; n = n.parentElement) {
+      if (!/auto|scroll/.test(getComputedStyle(n).overflowX)) continue;
+      if (ev.deltaX < 0 ? n.scrollLeft > 0 : n.scrollLeft + n.clientWidth < n.scrollWidth - 1) return;
+    }
+    ev.preventDefault();
+  }, { passive: false });
+
   narrow.addEventListener('change', checkViewport);
   window.addEventListener('resize', () => { if (S.map) applyView(); });
 
