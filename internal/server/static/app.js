@@ -769,7 +769,7 @@
     const box = S.nodeEls.get(id);
     if (box && focus) box.focus({ preventScroll: true });
     if (box) ensureVisible(id);
-    if (!id && focus) el.canvas.focus({ preventScroll: true });
+    if (!id && focus) el.canvas.focus({ preventScroll: true, focusVisible: false });
   }
 
   function ensureVisible(id) {
