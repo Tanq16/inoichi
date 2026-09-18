@@ -13,6 +13,7 @@
   })();
   const ACCENTS = ['mauve', 'blue', 'green', 'peach', 'pink', 'teal', 'yellow', 'red', 'sapphire', 'lavender'];
   const LIMITS = { text: 512, note: 20000, title: 120, nodes: 2000 };
+  const MOTION_MS = 260;
   const TYPE = {
     root: { size: 15, weight: 600, line: 20 },
     node: { size: 14, weight: 400, line: 20 },
@@ -62,7 +63,10 @@
     index: null,
     visible: null,
     drag: null,
+    motion: null,
   };
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   const clone = (v) => JSON.parse(JSON.stringify(v));
   const clampNum = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -604,8 +608,47 @@
     }
   }
 
+  function stopMotion() {
+    if (!S.motion) return;
+    cancelAnimationFrame(S.motion.raf);
+    S.motion = null;
+  }
+
+  function redrawPositions() {
+    for (const id of S.nodeEls.keys()) renderNodeGeometry(id);
+    renderEdges();
+  }
+
+  function glideTo(from) {
+    stopMotion();
+    const moving = [];
+    for (const n of S.map.nodes) {
+      const start = from.get(n.id);
+      if (!start || (Math.abs(start.x - n.x) < 0.5 && Math.abs(start.y - n.y) < 0.5)) continue;
+      moving.push({ id: n.id, fx: start.x, fy: start.y, tx: n.x, ty: n.y });
+    }
+    if (!moving.length || reduceMotion.matches) { redrawPositions(); return; }
+    const pos = new Map(moving.map((m) => [m.id, { x: m.fx, y: m.fy }]));
+    S.motion = { pos, raf: 0 };
+    const began = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - began) / MOTION_MS);
+      const eased = 1 - (1 - k) ** 3;
+      for (const m of moving) pos.set(m.id, { x: m.fx + (m.tx - m.fx) * eased, y: m.fy + (m.ty - m.fy) * eased });
+      redrawPositions();
+      if (k < 1) {
+        S.motion.raf = requestAnimationFrame(step);
+        return;
+      }
+      S.motion = null;
+      redrawPositions();
+    };
+    S.motion.raf = requestAnimationFrame(step);
+  }
+
   function renderAll() {
     if (!S.map) return;
+    stopMotion();
     invalidateIndex();
     el.nodes.replaceChildren();
     S.nodeEls.clear();
@@ -718,22 +761,29 @@
   }
 
   function edgePath(from, to, color, dashed) {
-    const x1 = from.x + from.width;
-    const y1 = from.y + from.height / 2;
-    const x2 = to.x;
-    const y2 = to.y + to.height / 2;
+    const a = drawnAt(from);
+    const b = drawnAt(to);
+    const x1 = a.x + from.width;
+    const y1 = a.y + from.height / 2;
+    const x2 = b.x;
+    const y2 = b.y + to.height / 2;
     const dx = Math.max(Math.abs(x2 - x1) * 0.5, 32);
     const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
     const dash = dashed ? ' stroke-dasharray="6 5"' : '';
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"${dash} stroke-opacity="${dashed ? 0.7 : TINT.edge}"/>`;
   }
 
+  function drawnAt(node) {
+    return S.motion ? S.motion.pos.get(node.id) || node : node;
+  }
+
   function renderNodeGeometry(id) {
     const node = nodeById(id);
     const box = S.nodeEls.get(id);
     if (!node || !box) return;
-    box.style.left = `${node.x}px`;
-    box.style.top = `${node.y}px`;
+    const at = drawnAt(node);
+    box.style.left = `${at.x}px`;
+    box.style.top = `${at.y}px`;
     box.style.width = `${node.width}px`;
     box.style.minHeight = `${node.height}px`;
   }
@@ -1306,6 +1356,7 @@
       return;
     }
 
+    stopMotion();
     const id = box.dataset.id;
     const roleEl = ev.target.closest('[data-role]');
     const role = roleEl ? roleEl.dataset.role : '';
@@ -1711,14 +1762,17 @@
       return false;
     }
     if (seq !== layoutSeq || map !== S.map) return false;
+    const from = new Map(S.map.nodes.map((n) => {
+      const at = drawnAt(n);
+      return [n.id, { x: at.x, y: at.y }];
+    }));
     const placed = new Map(laid.nodes.map((n) => [n.id, n]));
     for (const n of S.map.nodes) {
       const p = placed.get(n.id);
       if (p) { n.x = p.x; n.y = p.y; }
     }
     invalidateIndex();
-    for (const id of S.nodeEls.keys()) renderNodeGeometry(id);
-    renderEdges();
+    glideTo(from);
     if (S.selected) ensureVisible(S.selected);
     scheduleSave();
     return true;
