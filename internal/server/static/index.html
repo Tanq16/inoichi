@@ -45,8 +45,16 @@
       ::-webkit-scrollbar-thumb { background: var(--ctp-surface1); border-radius: 9999px; }
       ::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface2); }
       ::-webkit-scrollbar-corner { background: transparent; }
-      textarea::-webkit-resizer {
-        background-color: var(--ctp-surface0);
+      textarea::-webkit-resizer { background-color: var(--ctp-surface0); }
+      .grip { position: relative; }
+      .grip::after {
+        content: '';
+        position: absolute;
+        right: 3px;
+        bottom: 3px;
+        width: 11px;
+        height: 11px;
+        pointer-events: none;
         background-image: linear-gradient(135deg, transparent 0 56%, var(--ctp-overlay0) 56% 63%, transparent 63% 72%, var(--ctp-overlay0) 72% 79%, transparent 79%);
       }
 
@@ -308,7 +316,9 @@
     <div class="px-4 pb-4 space-y-5 overflow-y-auto flex-1">
       <div>
         <label for="insp-text" class="block text-xs text-overlay1 mb-1.5">Text</label>
-        <textarea id="insp-text" rows="2" maxlength="512" class="field resize-y"></textarea>
+        <div class="grip">
+          <textarea id="insp-text" rows="2" maxlength="512" class="field block resize-y"></textarea>
+        </div>
       </div>
       <div>
         <span class="block text-xs text-overlay1 mb-2">Accent</span>
@@ -321,7 +331,9 @@
             <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
           </button>
         </div>
-        <textarea id="insp-note" rows="12" maxlength="20000" placeholder="# Notes&#10;&#10;Anything longer than a label. Renders as Markdown." class="field font-mono text-xs pointer-coarse:text-[16px] leading-5 resize-y" spellcheck="false"></textarea>
+        <div class="grip">
+          <textarea id="insp-note" rows="12" maxlength="20000" placeholder="# Notes&#10;&#10;Anything longer than a label. Renders as Markdown." class="field block font-mono text-xs pointer-coarse:text-[16px] leading-5 resize-y" spellcheck="false"></textarea>
+        </div>
       </div>
       <div class="flex gap-2">
         <button id="insp-add-child" class="btn-quiet flex-1" title="Add child (Tab)"><i data-lucide="git-branch-plus" class="w-4 h-4"></i> Child</button>
